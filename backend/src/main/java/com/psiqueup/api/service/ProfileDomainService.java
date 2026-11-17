@@ -1,0 +1,71 @@
+package com.psiqueup.api.service;
+
+import com.psiqueup.api.domain.entity.PatientProfile;
+import com.psiqueup.api.domain.entity.PsychologistProfile;
+import com.psiqueup.api.domain.entity.TherapeuticApproach;
+import com.psiqueup.api.domain.entity.User;
+import com.psiqueup.api.domain.enums.UserRole;
+import com.psiqueup.api.dto.profile.PsychologistProfileResponse;
+import com.psiqueup.api.dto.profile.UpsertPsychologistProfileRequest;
+import com.psiqueup.api.repository.PatientProfileRepository;
+import com.psiqueup.api.repository.PsychologistProfileRepository;
+import com.psiqueup.api.repository.TherapeuticApproachRepository;
+import com.psiqueup.api.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@RequiredArgsConstructor
+public class ProfileDomainService {
+
+    private final UserRepository userRepository;
+    private final PsychologistProfileRepository psychologistRepository;
+    private final PatientProfileRepository patientRepository;
+    private final TherapeuticApproachRepository approachRepository;
+
+    @Transactional
+    public PsychologistProfileResponse upsertPsychologistProfile(String email, UpsertPsychologistProfileRequest request) {
+        User user = getUserByEmail(email);
+        if (user.getRole() != UserRole.PSYCHOLOGIST) {
+            throw new AccessDeniedException("Apenas utilizadores com perfil PSYCHOLOGIST podem configurar CRP.");
+        }
+
+        String normalizedCrp = request.crp().trim().toUpperCase();
+        PsychologistProfile profile = psychologistRepository.findById(user.getId())
+                .orElseGet(() -> PsychologistProfile.builder().user(user).build());
+
+        if ((profile.getCrp() == null || !profile.getCrp().equals(normalizedCrp))
+                && psychologistRepository.existsByCrp(normalizedCrp)) {
+            throw new IllegalArgumentException("Este CRP já se encontra registado na plataforma.");
+        }
+
+        TherapeuticApproach approach = approachRepository.findById(request.approachId())
+                .orElseThrow(() -> new IllegalArgumentException("Abordagem terapêutica não encontrada."));
+
+        profile.setCrp(normalizedCrp);
+        profile.setApproach(approach);
+        profile.setBio(request.bio() != null ? request.bio().trim() : null);
+
+        return PsychologistProfileResponse.fromEntity(psychologistRepository.save(profile));
+    }
+
+    @Transactional
+    public void ensurePatientProfile(String email) {
+        User user = getUserByEmail(email);
+        if (user.getRole() != UserRole.PATIENT) {
+            throw new AccessDeniedException("Apenas utilizadores com perfil PATIENT podem ativar perfil de paciente.");
+        }
+
+        if (!patientRepository.existsById(user.getId())) {
+            patientRepository.save(PatientProfile.builder().user(user).build());
+        }
+    }
+
+    private User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Utilizador não encontrado."));
+    }
+}
