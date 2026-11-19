@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Brain, Lock, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { extractApiErrorMessage } from '../utils/apiError';
 import type { UserRole } from '../types/api';
 
 function getHomeRouteByRole(role: UserRole) {
@@ -26,8 +27,8 @@ export function LoginPage() {
         try {
             const role = await login(email, password);
             navigate(getHomeRouteByRole(role));
-        } catch (err: any) {
-            setError(err.response?.data?.message || 'E-mail ou senha inválidos.');
+        } catch (err: unknown) {
+            setError(extractApiErrorMessage(err, 'E-mail ou senha inválidos.'));
         } finally {
             setLoading(false);
         }

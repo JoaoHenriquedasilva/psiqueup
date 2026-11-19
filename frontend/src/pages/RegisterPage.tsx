@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Brain, Lock, Mail, User } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { extractApiErrorMessage } from '../utils/apiError';
 
 export function RegisterPage() {
     const { register } = useAuth();
@@ -21,8 +22,8 @@ export function RegisterPage() {
         try {
             const createdRole = await register(name, email, password, role);
             navigate(createdRole === 'PSYCHOLOGIST' ? '/psychologist' : '/patient');
-        } catch (err: any) {
-            setError(err.response?.data?.message || 'Não foi possível concluir o cadastro.');
+        } catch (err: unknown) {
+            setError(extractApiErrorMessage(err, 'Não foi possível concluir o cadastro.'));
         } finally {
             setLoading(false);
         }
