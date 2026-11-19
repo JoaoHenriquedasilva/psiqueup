@@ -19,6 +19,14 @@ public class ProfileDomainController {
 
     private final ProfileDomainService profileDomainService;
 
+    @GetMapping("/psychologist/me")
+    @Operation(summary = "Obter perfil profissional do psicólogo autenticado")
+    public ResponseEntity<PsychologistProfileResponse> getMyPsychologistProfile(Authentication authentication) {
+        return ResponseEntity.ok(
+                profileDomainService.getMyPsychologistProfile(authentication.getName())
+        );
+    }
+
     @PutMapping("/psychologist")
     @Operation(summary = "Criar ou atualizar perfil profissional do psicólogo (CRP e abordagem)")
     public ResponseEntity<PsychologistProfileResponse> upsertPsychologistProfile(
