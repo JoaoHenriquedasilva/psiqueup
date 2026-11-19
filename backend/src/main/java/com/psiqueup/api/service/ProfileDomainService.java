@@ -12,10 +12,12 @@ import com.psiqueup.api.repository.PsychologistProfileRepository;
 import com.psiqueup.api.repository.TherapeuticApproachRepository;
 import com.psiqueup.api.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
@@ -28,10 +30,7 @@ public class ProfileDomainService {
 
     @Transactional
     public PsychologistProfileResponse upsertPsychologistProfile(String email, UpsertPsychologistProfileRequest request) {
-        User user = getUserByEmail(email);
-        if (user.getRole() != UserRole.PSYCHOLOGIST) {
-            throw new AccessDeniedException("Apenas utilizadores com perfil PSYCHOLOGIST podem configurar CRP.");
-        }
+        User user = getPsychologistUser(email);
 
         String normalizedCrp = request.crp().trim().toUpperCase();
         PsychologistProfile profile = psychologistRepository.findById(user.getId())
@@ -52,6 +51,18 @@ public class ProfileDomainService {
         return PsychologistProfileResponse.fromEntity(psychologistRepository.save(profile));
     }
 
+    @Transactional(readOnly = true)
+    public PsychologistProfileResponse getMyPsychologistProfile(String email) {
+        User user = getPsychologistUser(email);
+        PsychologistProfile profile = psychologistRepository.findById(user.getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Perfil profissional ainda não configurado."
+                ));
+
+        return PsychologistProfileResponse.fromEntity(profile);
+    }
+
     @Transactional
     public void ensurePatientProfile(String email) {
         User user = getUserByEmail(email);
@@ -62,6 +73,14 @@ public class ProfileDomainService {
         if (!patientRepository.existsById(user.getId())) {
             patientRepository.save(PatientProfile.builder().user(user).build());
         }
+    }
+
+    private User getPsychologistUser(String email) {
+        User user = getUserByEmail(email);
+        if (user.getRole() != UserRole.PSYCHOLOGIST) {
+            throw new AccessDeniedException("Apenas utilizadores com perfil PSYCHOLOGIST podem gerir este perfil.");
+        }
+        return user;
     }
 
     private User getUserByEmail(String email) {
