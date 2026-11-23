@@ -5,5 +5,11 @@ import jakarta.validation.constraints.NotNull;
 
 public record UpdateSessionStatusRequest(
         @NotNull(message = "O novo status da sessão é obrigatório")
-        SessionStatus status
-) {}
+        SessionStatus status,
+
+        Boolean confirmEarlyCompletion
+) {
+    public UpdateSessionStatusRequest(SessionStatus status) {
+        this(status, null);
+    }
+}

@@ -19,9 +19,23 @@ export function RegisterPage() {
     async function handleSubmit(e: FormEvent) {
         e.preventDefault();
         setError('');
+
+        const trimmedName = name.trim();
+        const trimmedEmail = email.trim();
+
+        if (trimmedName.length < 3) {
+            setError('O nome deve ter entre 3 e 120 caracteres.');
+            return;
+        }
+
+        if (!trimmedEmail) {
+            setError('O e-mail é obrigatório.');
+            return;
+        }
+
         setLoading(true);
         try {
-            const createdRole = await register(name, email, password, role);
+            const createdRole = await register(trimmedName, trimmedEmail, password, role);
             navigate(getHomeRouteByRole(createdRole), { replace: true });
         } catch (err: unknown) {
             setError(extractApiErrorMessage(err, 'Não foi possível concluir o cadastro.'));
@@ -80,6 +94,8 @@ export function RegisterPage() {
                             <input
                                 type="text"
                                 required
+                                minLength={3}
+                                maxLength={120}
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 placeholder="Ex.: Dra. Ana Silva"
@@ -95,6 +111,7 @@ export function RegisterPage() {
                             <input
                                 type="email"
                                 required
+                                maxLength={150}
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="seu@email.com"
@@ -111,6 +128,7 @@ export function RegisterPage() {
                                 type="password"
                                 required
                                 minLength={6}
+                                maxLength={72}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="Mínimo 6 caracteres"
