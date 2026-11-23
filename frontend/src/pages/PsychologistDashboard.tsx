@@ -11,7 +11,7 @@ import {
     XCircle,
     AlertCircle,
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth';
 import { api } from '../services/api';
 import { extractApiErrorMessage, isApiHttpStatus } from '../utils/apiError';
 import {

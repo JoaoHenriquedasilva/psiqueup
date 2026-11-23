@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Brain, Lock, Mail, User } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/useAuth';
 import { extractApiErrorMessage } from '../utils/apiError';
+import { getHomeRouteByRole } from '../utils/authRoutes';
 
 export function RegisterPage() {
     const { register } = useAuth();
@@ -21,7 +22,7 @@ export function RegisterPage() {
         setLoading(true);
         try {
             const createdRole = await register(name, email, password, role);
-            navigate(createdRole === 'PSYCHOLOGIST' ? '/psychologist' : '/patient');
+            navigate(getHomeRouteByRole(createdRole), { replace: true });
         } catch (err: unknown) {
             setError(extractApiErrorMessage(err, 'Não foi possível concluir o cadastro.'));
         } finally {
