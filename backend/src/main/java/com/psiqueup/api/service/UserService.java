@@ -4,6 +4,7 @@ import com.psiqueup.api.domain.entity.User;
 import com.psiqueup.api.dto.user.UpdateUserProfileRequest;
 import com.psiqueup.api.dto.user.UserProfileResponse;
 import com.psiqueup.api.repository.UserRepository;
+import com.psiqueup.api.util.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -24,13 +25,17 @@ public class UserService {
     @Transactional
     public UserProfileResponse updateCurrentUserProfile(String email, UpdateUserProfileRequest request) {
         User user = findByEmailOrThrow(email);
-        user.setName(request.name().trim());
+        String trimmedName = request.name().trim();
+        if (trimmedName.length() < 3) {
+            throw new IllegalArgumentException("O nome deve ter entre 3 e 120 caracteres.");
+        }
+        user.setName(trimmedName);
         User updatedUser = userRepository.save(user);
         return UserProfileResponse.fromEntity(updatedUser);
     }
 
     private User findByEmailOrThrow(String email) {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmail(EmailNormalizer.normalize(email))
                 .orElseThrow(() -> new UsernameNotFoundException("Utilizador não encontrado."));
     }
 }
