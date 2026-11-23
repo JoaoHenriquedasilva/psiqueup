@@ -17,9 +17,15 @@ export function LoginPage() {
     async function handleSubmit(e: FormEvent) {
         e.preventDefault();
         setError('');
+        const normalizedEmail = email.trim();
+        if (!normalizedEmail) {
+            setError('O e-mail é obrigatório.');
+            return;
+        }
+
         setLoading(true);
         try {
-            const role = await login(email, password);
+            const role = await login(normalizedEmail, password);
             navigate(getHomeRouteByRole(role), { replace: true });
         } catch (err: unknown) {
             setError(extractApiErrorMessage(err, 'E-mail ou senha inválidos.'));
@@ -53,6 +59,7 @@ export function LoginPage() {
                             <input
                                 type="email"
                                 required
+                                maxLength={150}
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 placeholder="seu@email.com"
