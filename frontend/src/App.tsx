@@ -1,15 +1,17 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
+import { useAuth } from './contexts/useAuth';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { PsychologistDashboard } from './pages/PsychologistDashboard';
 import { PatientDashboard } from './pages/PatientDashboard';
+import { getHomeRouteByRole } from './utils/authRoutes';
 import type { UserRole } from './types/api';
 
 function ProtectedRoute({
-                            children,
-                            allowedRoles,
-                        }: {
+    children,
+    allowedRoles,
+}: {
     children: React.ReactNode;
     allowedRoles: UserRole[];
 }) {
@@ -20,10 +22,30 @@ function ProtectedRoute({
     }
 
     if (!allowedRoles.includes(user.role)) {
-        return <Navigate to="/login" replace />;
+        return <Navigate to={getHomeRouteByRole(user.role)} replace />;
     }
 
     return <>{children}</>;
+}
+
+function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
+    const { user, isAuthenticated } = useAuth();
+
+    if (isAuthenticated && user) {
+        return <Navigate to={getHomeRouteByRole(user.role)} replace />;
+    }
+
+    return <>{children}</>;
+}
+
+function FallbackRedirect() {
+    const { user, isAuthenticated } = useAuth();
+
+    if (isAuthenticated && user) {
+        return <Navigate to={getHomeRouteByRole(user.role)} replace />;
+    }
+
+    return <Navigate to="/login" replace />;
 }
 
 function AdminPlaceholder() {
@@ -53,8 +75,22 @@ export function App() {
         <AuthProvider>
             <BrowserRouter>
                 <Routes>
-                    <Route path="/login" element={<LoginPage />} />
-                    <Route path="/register" element={<RegisterPage />} />
+                    <Route
+                        path="/login"
+                        element={
+                            <PublicOnlyRoute>
+                                <LoginPage />
+                            </PublicOnlyRoute>
+                        }
+                    />
+                    <Route
+                        path="/register"
+                        element={
+                            <PublicOnlyRoute>
+                                <RegisterPage />
+                            </PublicOnlyRoute>
+                        }
+                    />
 
                     <Route
                         path="/psychologist"
@@ -83,7 +119,7 @@ export function App() {
                         }
                     />
 
-                    <Route path="*" element={<Navigate to="/login" replace />} />
+                    <Route path="*" element={<FallbackRedirect />} />
                 </Routes>
             </BrowserRouter>
         </AuthProvider>

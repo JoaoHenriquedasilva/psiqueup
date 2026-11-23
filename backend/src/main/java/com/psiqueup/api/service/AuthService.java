@@ -1,6 +1,7 @@
 package com.psiqueup.api.service;
 
 import com.psiqueup.api.domain.entity.User;
+import com.psiqueup.api.domain.enums.UserRole;
 import com.psiqueup.api.dto.auth.AuthResponse;
 import com.psiqueup.api.dto.auth.LoginRequest;
 import com.psiqueup.api.dto.auth.RegisterRequest;
@@ -9,6 +10,7 @@ import com.psiqueup.api.security.CustomUserDetailsService;
 import com.psiqueup.api.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -33,11 +35,16 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Este e-mail já está cadastrado.");
         }
 
+        UserRole resolvedRole = request.role().toUserRole();
+        if (resolvedRole == UserRole.ADMIN) {
+            throw new AccessDeniedException("Cadastro público não permitido para perfil administrativo.");
+        }
+
         User user = User.builder()
                 .name(request.name())
                 .email(request.email())
                 .passwordHash(passwordEncoder.encode(request.password()))
-                .role(request.role())
+                .role(resolvedRole)
                 .active(true)
                 .build();
 
