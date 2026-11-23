@@ -2,28 +2,28 @@ import { useEffect, useState } from 'react';
 import {
     AlertTriangle,
     BookOpen,
-    Brain,
     Calendar,
     Clock,
-    LogOut,
     ShieldAlert,
     UserCheck,
     XCircle,
 } from 'lucide-react';
+import { DashboardNavbar } from '../components/DashboardNavbar';
+import { FeedbackBanner, type FeedbackMessage } from '../components/FeedbackBanner';
 import { useAuth } from '../contexts/useAuth';
 import { api } from '../services/api';
 import { extractApiErrorMessage } from '../utils/apiError';
 import { formatSessionDateTime } from '../utils/dateTime';
-import { SESSION_STATUS_LABELS } from '../utils/sessionStatus';
+import { getSessionStatusBadge } from '../utils/sessionStatus';
 import type { SessionItem, TherapeuticLink } from '../types/api';
 
 export function PatientDashboard() {
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
 
     const [links, setLinks] = useState<TherapeuticLink[]>([]);
     const [sessions, setSessions] = useState<SessionItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
 
     // Estado para rejeição de vínculo
     const [rejectingLinkId, setRejectingLinkId] = useState<number | null>(null);
@@ -136,50 +136,14 @@ export function PatientDashboard() {
 
     return (
         <div className="min-h-screen bg-slate-50">
-            {/* Navbar */}
-            <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-                <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                        <div className="h-9 w-9 rounded-lg bg-teal-600 text-white flex items-center justify-center">
-                            <Brain className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <span className="font-bold text-slate-900">PsiqueUp</span>
-                            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium">
-                                Área do Paciente
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <span className="text-sm text-slate-600 hidden sm:inline">
-                            Olá, <strong>{user?.name}</strong>
-                        </span>
-                        <button
-                            onClick={logout}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-200 cursor-pointer"
-                        >
-                            <LogOut className="h-4 w-4" />
-                            Sair
-                        </button>
-                    </div>
-                </div>
-            </header>
+            <DashboardNavbar
+                roleBadgeLabel="Área do Paciente"
+                roleBadgeClassName="bg-indigo-50 text-indigo-700"
+                maxWidthClassName="max-w-5xl"
+            />
 
             <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-                {feedback && (
-                    <div
-                        className={`rounded-xl px-4 py-3 text-sm border flex items-center justify-between ${feedback.type === 'success'
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                            : 'bg-red-50 border-red-200 text-red-700'
-                            }`}
-                    >
-                        <span>{feedback.text}</span>
-                        <button onClick={() => setFeedback(null)} className="text-xs underline ml-4 cursor-pointer">
-                            Fechar
-                        </button>
-                    </div>
-                )}
+                <FeedbackBanner feedback={feedback} onClose={() => setFeedback(null)} />
 
                 {loading ? (
                     <p className="text-center text-slate-500 py-12">Carregando seu acompanhamento...</p>
@@ -263,6 +227,8 @@ export function PatientDashboard() {
                                                         Deseja realmente desvincular este profissional? Esta ação bloqueia novos agendamentos por ele.
                                                     </p>
                                                     <input
+                                                        id={`reject-reason-${link.id}`}
+                                                        aria-label="Motivo da rejeição do vínculo"
                                                         type="text"
                                                         maxLength={255}
                                                         value={rejectionReason}
@@ -316,7 +282,7 @@ export function PatientDashboard() {
                             ) : (
                                 <div className="divide-y divide-slate-100">
                                     {sessions.map((session) => {
-                                        const badge = SESSION_STATUS_LABELS[session.status];
+                                        const badge = getSessionStatusBadge(session.status);
                                         const isUpdatingThis = updatingSessionId === session.id;
                                         const pendingConfirm =
                                             confirmingSession?.id === session.id
