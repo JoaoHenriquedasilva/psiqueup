@@ -3,6 +3,7 @@ package com.psiqueup.api.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
@@ -12,16 +13,26 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 @Service
 public class JwtService {
+
+    private static final int MIN_SECRET_BYTES = 32;
 
     @Value("${api.security.token.secret}")
     private String secretKey;
 
     @Value("${api.security.token.expiration}")
     private long jwtExpiration;
+
+    @PostConstruct
+    void validateSecretKey() {
+        if (secretKey == null || secretKey.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException("JWT secret must be configured with at least 32 bytes (256 bits).");
+        }
+    }
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
@@ -47,19 +58,20 @@ public class JwtService {
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+        return isTokenValid(extractAllClaims(token), userDetails);
     }
 
-    private boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
+    public boolean isTokenValid(Claims claims, UserDetails userDetails) {
+        if (claims == null || userDetails == null || !userDetails.isEnabled()) {
+            return false;
+        }
+        Date expiration = claims.getExpiration();
+        return Objects.equals(claims.getSubject(), userDetails.getUsername())
+                && expiration != null
+                && !expiration.before(new Date());
     }
 
-    private Date extractExpiration(String token) {
-        return extractClaim(token, Claims::getExpiration);
-    }
-
-    private Claims extractAllClaims(String token) {
+    public Claims extractAllClaims(String token) {
         return Jwts.parser()
                 .verifyWith(getSignInKey())
                 .build()
