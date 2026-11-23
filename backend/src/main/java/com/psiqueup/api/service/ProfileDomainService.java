@@ -29,11 +29,18 @@ public class ProfileDomainService {
     private final PatientProfileRepository patientRepository;
     private final TherapeuticApproachRepository approachRepository;
 
+    private static final String BRAZILIAN_CRP_REGEX = "^(0[1-9]|1[0-9]|2[0-4])/\\d{4,6}$";
+
     @Transactional
     public PsychologistProfileResponse upsertPsychologistProfile(String email, UpsertPsychologistProfileRequest request) {
         User user = getPsychologistUser(email);
 
         String normalizedCrp = request.crp().trim().toUpperCase();
+        if (!normalizedCrp.matches(BRAZILIAN_CRP_REGEX)) {
+            throw new IllegalArgumentException(
+                    "Informe um CRP brasileiro válido no formato XX/NNNNN (ex.: 06/12345)."
+            );
+        }
         PsychologistProfile profile = psychologistRepository.findById(user.getId())
                 .orElseGet(() -> PsychologistProfile.builder().user(user).build());
 
