@@ -1,17 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
-    Brain,
     Calendar,
     CheckCircle2,
     Clock,
-    LogOut,
     Plus,
     UserPlus,
     Users,
     XCircle,
     AlertCircle,
 } from 'lucide-react';
-import { useAuth } from '../contexts/useAuth';
+import { DashboardNavbar } from '../components/DashboardNavbar';
+import { FeedbackBanner, type FeedbackMessage } from '../components/FeedbackBanner';
 import { api } from '../services/api';
 import { extractApiErrorMessage, isApiHttpStatus } from '../utils/apiError';
 import {
@@ -19,7 +18,7 @@ import {
     getTodayDateInputValue,
     localDateTimeToIso,
 } from '../utils/dateTime';
-import { SESSION_STATUS_LABELS } from '../utils/sessionStatus';
+import { getSessionStatusBadge } from '../utils/sessionStatus';
 import type {
     PsychologistProfile,
     SessionItem,
@@ -28,15 +27,15 @@ import type {
     TherapeuticLink,
 } from '../types/api';
 
-export function PsychologistDashboard() {
-    const { user, logout } = useAuth();
+const BRAZILIAN_CRP_REGEX = /^(0[1-9]|1[0-9]|2[0-4])\/\d{4,6}$/;
 
+export function PsychologistDashboard() {
     const [approaches, setApproaches] = useState<TherapeuticApproach[]>([]);
     const [profile, setProfile] = useState<PsychologistProfile | null>(null);
     const [links, setLinks] = useState<TherapeuticLink[]>([]);
     const [sessions, setSessions] = useState<SessionItem[]>([]);
     const [loading, setLoading] = useState(true);
-    const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
 
     // Form Perfil Profissional
     const [crp, setCrp] = useState('');
@@ -119,6 +118,14 @@ export function PsychologistDashboard() {
             setFeedback({
                 type: 'error',
                 text: 'Preencha o CRP e selecione uma abordagem terapêutica.',
+            });
+            return;
+        }
+
+        if (!BRAZILIAN_CRP_REGEX.test(trimmedCrp)) {
+            setFeedback({
+                type: 'error',
+                text: 'Informe um CRP brasileiro válido no formato XX/NNNNN (ex.: 06/12345).',
             });
             return;
         }
@@ -301,50 +308,14 @@ export function PsychologistDashboard() {
 
     return (
         <div className="min-h-screen bg-slate-50">
-            {/* Navbar */}
-            <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-                <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                        <div className="h-9 w-9 rounded-lg bg-teal-600 text-white flex items-center justify-center">
-                            <Brain className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <span className="font-bold text-slate-900">PsiqueUp</span>
-                            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 font-medium">
-                                Psicólogo(a)
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <span className="text-sm text-slate-600 hidden sm:inline">
-                            Olá, <strong>{user?.name}</strong>
-                        </span>
-                        <button
-                            onClick={logout}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-200 cursor-pointer"
-                        >
-                            <LogOut className="h-4 w-4" />
-                            Sair
-                        </button>
-                    </div>
-                </div>
-            </header>
+            <DashboardNavbar
+                roleBadgeLabel="Psicólogo(a)"
+                roleBadgeClassName="bg-teal-50 text-teal-700"
+                maxWidthClassName="max-w-6xl"
+            />
 
             <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-                {feedback && (
-                    <div
-                        className={`rounded-xl px-4 py-3 text-sm border flex items-center justify-between ${feedback.type === 'success'
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                            : 'bg-red-50 border-red-200 text-red-700'
-                            }`}
-                    >
-                        <span>{feedback.text}</span>
-                        <button onClick={() => setFeedback(null)} className="text-xs underline ml-4 cursor-pointer">
-                            Fechar
-                        </button>
-                    </div>
-                )}
+                <FeedbackBanner feedback={feedback} onClose={() => setFeedback(null)} />
 
                 {loading ? (
                     <p className="text-center text-slate-500 py-12">Carregando informações clínicas...</p>
@@ -362,23 +333,35 @@ export function PsychologistDashboard() {
                                 <form onSubmit={handleSaveProfile} className="space-y-4">
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-700 mb-1">CRP</label>
+                                            <label
+                                                htmlFor="psych-crp"
+                                                className="block text-xs font-medium text-slate-700 mb-1"
+                                            >
+                                                CRP
+                                            </label>
                                             <input
+                                                id="psych-crp"
                                                 type="text"
                                                 required
                                                 maxLength={20}
+                                                pattern="^\s*(0[1-9]|1[0-9]|2[0-4])/\d{4,6}\s*$"
+                                                title="Formato brasileiro XX/NNNNN (regiões 01 a 24, ex.: 06/12345)"
                                                 value={crp}
                                                 onChange={(e) => setCrp(e.target.value)}
-                                                placeholder="Ex.: 02/12345"
+                                                placeholder="Ex.: 06/12345"
                                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-medium text-slate-700 mb-1">
+                                            <label
+                                                htmlFor="psych-approach"
+                                                className="block text-xs font-medium text-slate-700 mb-1"
+                                            >
                                                 Abordagem Terapêutica
                                             </label>
                                             <select
+                                                id="psych-approach"
                                                 required
                                                 value={approachId}
                                                 onChange={(e) =>
@@ -397,10 +380,14 @@ export function PsychologistDashboard() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-700 mb-1">
+                                        <label
+                                            htmlFor="psych-bio"
+                                            className="block text-xs font-medium text-slate-700 mb-1"
+                                        >
                                             Apresentação / Bio (opcional)
                                         </label>
                                         <textarea
+                                            id="psych-bio"
                                             rows={2}
                                             maxLength={500}
                                             value={bio}
@@ -433,6 +420,8 @@ export function PsychologistDashboard() {
 
                                     <form onSubmit={handleLinkPatient} className="flex gap-2 mb-5">
                                         <input
+                                            id="link-patient-email"
+                                            aria-label="E-mail do paciente para vínculo"
                                             type="email"
                                             required
                                             maxLength={150}
@@ -503,10 +492,14 @@ export function PsychologistDashboard() {
                                 {/* Formulário compacto de agendamento */}
                                 <form onSubmit={handleScheduleSession} className="flex flex-wrap items-end gap-2">
                                     <div>
-                                        <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                                        <label
+                                            htmlFor="schedule-patient"
+                                            className="block text-[11px] font-medium text-slate-600 mb-1"
+                                        >
                                             Paciente Ativo
                                         </label>
                                         <select
+                                            id="schedule-patient"
                                             required
                                             value={selectedPatientId}
                                             onChange={(e) =>
@@ -526,8 +519,14 @@ export function PsychologistDashboard() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-[11px] font-medium text-slate-600 mb-1">Data</label>
+                                        <label
+                                            htmlFor="schedule-date"
+                                            className="block text-[11px] font-medium text-slate-600 mb-1"
+                                        >
+                                            Data
+                                        </label>
                                         <input
+                                            id="schedule-date"
                                             type="date"
                                             required
                                             min={getTodayDateInputValue()}
@@ -538,10 +537,14 @@ export function PsychologistDashboard() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                                        <label
+                                            htmlFor="schedule-start"
+                                            className="block text-[11px] font-medium text-slate-600 mb-1"
+                                        >
                                             Início
                                         </label>
                                         <input
+                                            id="schedule-start"
                                             type="time"
                                             required
                                             value={startHour}
@@ -551,8 +554,14 @@ export function PsychologistDashboard() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-[11px] font-medium text-slate-600 mb-1">Fim</label>
+                                        <label
+                                            htmlFor="schedule-end"
+                                            className="block text-[11px] font-medium text-slate-600 mb-1"
+                                        >
+                                            Fim
+                                        </label>
                                         <input
+                                            id="schedule-end"
                                             type="time"
                                             required
                                             value={endHour}
@@ -579,7 +588,7 @@ export function PsychologistDashboard() {
                             ) : (
                                 <div className="divide-y divide-slate-100">
                                     {sessions.map((session) => {
-                                        const badge = SESSION_STATUS_LABELS[session.status];
+                                        const badge = getSessionStatusBadge(session.status);
                                         const isUpdatingThis = updatingSessionId === session.id;
                                         const isConfirmingEarly = confirmingEarlySessionId === session.id;
 

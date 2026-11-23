@@ -56,6 +56,11 @@ class DomainRulesTest {
         return UUID.randomUUID().toString().substring(0, 8);
     }
 
+    private String uniqueBrazilianCrp() {
+        int number = 100000 + Math.abs(UUID.randomUUID().hashCode() % 899999);
+        return "06/" + number;
+    }
+
     @Test
     void shouldNormalizeEmailsOnRegisterLoginAndLink() {
         String suffix = uniqueSuffix();
@@ -86,7 +91,7 @@ class DomainRulesTest {
         // Configurar CRP e vincular usando e-mail com caixa mista
         profileDomainService.upsertPsychologistProfile(
                 psychAuth.email(),
-                new UpsertPsychologistProfileRequest("06/" + suffix, 1L, "Bio teste")
+                new UpsertPsychologistProfileRequest(uniqueBrazilianCrp(), 1L, "Bio teste")
         );
 
         LinkResponse link = linkService.createLink(
@@ -107,7 +112,7 @@ class DomainRulesTest {
 
         profileDomainService.upsertPsychologistProfile(
                 psychEmail,
-                new UpsertPsychologistProfileRequest("06/" + suffix, 1L, null)
+                new UpsertPsychologistProfileRequest(uniqueBrazilianCrp(), 1L, null)
         );
         LinkResponse link = linkService.createLink(psychEmail, new CreateLinkRequest(patientEmail));
 
@@ -193,7 +198,7 @@ class DomainRulesTest {
 
         profileDomainService.upsertPsychologistProfile(
                 psychEmail,
-                new UpsertPsychologistProfileRequest("06/" + suffix, 1L, null)
+                new UpsertPsychologistProfileRequest(uniqueBrazilianCrp(), 1L, null)
         );
         LinkResponse link = linkService.createLink(psychEmail, new CreateLinkRequest(patientEmail));
 
