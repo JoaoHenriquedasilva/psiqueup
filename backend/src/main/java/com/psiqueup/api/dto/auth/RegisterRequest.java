@@ -13,6 +13,7 @@ public record RegisterRequest(
 
         @NotBlank(message = "O e-mail é obrigatório")
         @Email(message = "Formato de e-mail inválido")
+        @Size(max = 150, message = "O e-mail deve ter no máximo 150 caracteres")
         String email,
 
         @NotBlank(message = "A senha é obrigatória")

@@ -11,6 +11,7 @@ import com.psiqueup.api.repository.PatientProfileRepository;
 import com.psiqueup.api.repository.PsychologistProfileRepository;
 import com.psiqueup.api.repository.TherapeuticApproachRepository;
 import com.psiqueup.api.repository.UserRepository;
+import com.psiqueup.api.util.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -84,7 +85,7 @@ public class ProfileDomainService {
     }
 
     private User getUserByEmail(String email) {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmail(EmailNormalizer.normalize(email))
                 .orElseThrow(() -> new UsernameNotFoundException("Utilizador não encontrado."));
     }
 }
