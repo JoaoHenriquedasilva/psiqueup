@@ -1,6 +1,6 @@
 package com.psiqueup.api.dto.auth;
 
-import com.psiqueup.api.domain.enums.UserRole;
+import com.psiqueup.api.domain.enums.PublicUserRole;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -20,6 +20,6 @@ public record RegisterRequest(
         String password,
 
         @NotNull(message = "O perfil do usuário é obrigatório")
-        UserRole role
+        PublicUserRole role
 ) {
 }
