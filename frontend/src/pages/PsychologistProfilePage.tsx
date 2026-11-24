@@ -118,7 +118,7 @@ export function PsychologistProfilePage() {
     return (
         <DashboardShell
             roleBadgeLabel="Psicólogo(a)"
-            roleBadgeClassName="bg-[#E8F3F1] text-[#164E48]"
+            roleBadgeClassName="bg-primary-tint text-primary-tint-ink"
             navItems={PSYCHOLOGIST_NAV_ITEMS}
             pageTitle="Perfil Profissional"
             pageSubtitle="Configure seu registro CRP e abordagem terapêutica visíveis aos seus pacientes."
@@ -126,19 +126,19 @@ export function PsychologistProfilePage() {
             onCloseFeedback={() => setFeedback(null)}
         >
             {loading ? (
-                <div className="bg-white rounded-2xl border border-[#E2E6E1] p-12 text-center shadow-surface">
-                    <p className="text-sm text-[#4A5D61]">Carregando perfil profissional...</p>
+                <div className="bg-surface rounded-2xl border border-border-subtle p-12 text-center shadow-surface">
+                    <p className="text-sm text-ink-secondary">Carregando perfil profissional...</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                     {/* Formulário de Perfil */}
-                    <section className="lg:col-span-7 bg-white rounded-2xl border border-[#E2E6E1] p-6 shadow-surface">
+                    <section className="lg:col-span-7 bg-surface rounded-2xl border border-border-subtle p-6 shadow-surface">
                         <div className="flex items-center justify-between gap-2 mb-5">
-                            <h2 className="font-display text-lg font-semibold text-[#132226]">
+                            <h2 className="font-display text-lg font-semibold text-ink">
                                 Dados de Registro e Abordagem
                             </h2>
                             {profile && (
-                                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-[#E8F4EE] text-[#1B5E3F] border border-[#C6E3D3]">
+                                <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-success-bg text-success-ink border border-success-border">
                                     <CheckCircle2 className="h-3.5 w-3.5" />
                                     Perfil ativo
                                 </span>
@@ -150,7 +150,7 @@ export function PsychologistProfilePage() {
                                 <div>
                                     <label
                                         htmlFor="psych-crp"
-                                        className="block text-xs font-medium text-[#4A5D61] mb-1.5"
+                                        className="block text-xs font-medium text-ink-secondary mb-1.5"
                                     >
                                         CRP
                                     </label>
@@ -164,14 +164,14 @@ export function PsychologistProfilePage() {
                                         value={crp}
                                         onChange={(e) => setCrp(e.target.value)}
                                         placeholder="Ex.: 06/12345"
-                                        className="w-full px-3.5 py-2.5 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] tabular-nums focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63]"
+                                        className="w-full px-3.5 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink tabular-nums focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink"
                                     />
                                 </div>
 
                                 <div>
                                     <label
                                         htmlFor="psych-approach"
-                                        className="block text-xs font-medium text-[#4A5D61] mb-1.5"
+                                        className="block text-xs font-medium text-ink-secondary mb-1.5"
                                     >
                                         Abordagem Terapêutica
                                     </label>
@@ -184,7 +184,7 @@ export function PsychologistProfilePage() {
                                                 e.target.value ? Number(e.target.value) : ''
                                             )
                                         }
-                                        className="w-full px-3.5 py-2.5 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63]"
+                                        className="w-full px-3.5 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink"
                                     >
                                         <option value="">Selecione...</option>
                                         {approaches.map((app) => (
@@ -199,7 +199,7 @@ export function PsychologistProfilePage() {
                             <div>
                                 <label
                                     htmlFor="psych-bio"
-                                    className="block text-xs font-medium text-[#4A5D61] mb-1.5"
+                                    className="block text-xs font-medium text-ink-secondary mb-1.5"
                                 >
                                     Apresentação / Bio (opcional)
                                 </label>
@@ -210,9 +210,9 @@ export function PsychologistProfilePage() {
                                     value={bio}
                                     onChange={(e) => setBio(e.target.value)}
                                     placeholder="Breve descrição da sua atuação clínica..."
-                                    className="w-full px-3.5 py-2.5 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63]"
+                                    className="w-full px-3.5 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink"
                                 />
-                                <p className="text-[11px] text-[#4A5D61] mt-1 text-right tabular-nums">
+                                <p className="text-[11px] text-ink-secondary mt-1 text-right tabular-nums">
                                     {bio.length}/500
                                 </p>
                             </div>
@@ -220,7 +220,7 @@ export function PsychologistProfilePage() {
                             <button
                                 type="submit"
                                 disabled={savingProfile || approaches.length === 0 || !approachId}
-                                className="px-5 py-2.5 bg-[#1E6B63] hover:bg-[#16544E] text-white text-sm font-semibold rounded-xl transition cursor-pointer disabled:opacity-60"
+                                className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer disabled:opacity-60"
                             >
                                 {savingProfile
                                     ? 'Salvando...'
@@ -232,31 +232,31 @@ export function PsychologistProfilePage() {
                     </section>
 
                     {/* Preview para o Paciente */}
-                    <aside className="lg:col-span-5 bg-white rounded-2xl border border-[#E2E6E1] p-6 shadow-surface space-y-4">
+                    <aside className="lg:col-span-5 bg-surface rounded-2xl border border-border-subtle p-6 shadow-surface space-y-4">
                         <div>
-                            <p className="text-xs font-semibold uppercase tracking-wider text-[#4A5D61]">
+                            <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
                                 Pré-visualização do Paciente
                             </p>
-                            <h3 className="font-display text-base font-semibold text-[#132226] mt-0.5">
+                            <h3 className="font-display text-base font-semibold text-ink mt-0.5">
                                 Como o paciente lê sua abordagem
                             </h3>
                         </div>
 
                         {selectedApproach ? (
-                            <div className="rounded-xl bg-[#E8F3F1] border border-[#C9E2DD] p-4 flex items-start gap-3">
-                                <BookOpen className="h-5 w-5 text-[#1E6B63] shrink-0 mt-0.5" />
+                            <div className="rounded-xl bg-primary-tint border border-primary-tint-border p-4 flex items-start gap-3">
+                                <BookOpen className="h-5 w-5 text-primary-ink shrink-0 mt-0.5" />
                                 <div>
-                                    <p className="text-xs font-semibold text-[#164E48] mb-1">
+                                    <p className="text-xs font-semibold text-primary-tint-ink mb-1">
                                         Como funciona a {selectedApproach.name}?
                                     </p>
-                                    <p className="text-sm text-[#164E48]/90 leading-relaxed">
+                                    <p className="text-sm text-primary-tint-ink/90 leading-relaxed">
                                         {selectedApproach.patientFriendlyDescription}
                                     </p>
                                 </div>
                             </div>
                         ) : (
-                            <div className="rounded-xl bg-[#F9FAF8] border border-dashed border-[#E2E6E1] p-5 text-center">
-                                <p className="text-xs text-[#4A5D61]">
+                            <div className="rounded-xl bg-subsurface border border-dashed border-border-subtle p-5 text-center">
+                                <p className="text-xs text-ink-secondary">
                                     Selecione uma abordagem terapêutica ao lado para visualizar a
                                     descrição didática exibida ao paciente.
                                 </p>

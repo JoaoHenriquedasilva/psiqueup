@@ -105,7 +105,7 @@ export function PatientDashboard() {
     return (
         <DashboardShell
             roleBadgeLabel="Área do Paciente"
-            roleBadgeClassName="bg-[#EEF3F7] text-[#2E4A63]"
+            roleBadgeClassName="bg-slate-inst-tint text-slate-inst-ink"
             navItems={PATIENT_NAV_ITEMS}
             pageTitle="Meu Acompanhamento"
             pageSubtitle="Conheça a abordagem do profissional vinculado a você e acompanhe sua próxima sessão."
@@ -113,33 +113,33 @@ export function PatientDashboard() {
             onCloseFeedback={() => setFeedback(null)}
         >
             {loading ? (
-                <div className="bg-white rounded-2xl border border-[#E2E6E1] p-12 text-center shadow-surface">
-                    <p className="text-sm text-[#4A5D61]">Carregando seu acompanhamento...</p>
+                <div className="bg-surface rounded-2xl border border-border-subtle p-12 text-center shadow-surface">
+                    <p className="text-sm text-ink-secondary">Carregando seu acompanhamento...</p>
                 </div>
             ) : (
                 <div className="space-y-6">
                     {/* Card Resumo da Próxima Sessão */}
-                    <section className="bg-white rounded-2xl border border-[#E2E6E1] p-5 sm:p-6 shadow-surface flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <section className="bg-surface rounded-2xl border border-border-subtle p-5 sm:p-6 shadow-surface flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="flex items-start gap-3.5">
-                            <div className="h-10 w-10 rounded-xl bg-[#EEF3F7] text-[#3B5B78] flex items-center justify-center shrink-0">
+                            <div className="h-10 w-10 rounded-xl bg-slate-inst-tint text-slate-inst flex items-center justify-center shrink-0">
                                 <Calendar className="h-5 w-5" />
                             </div>
                             <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-[#4A5D61]">
+                                <p className="text-xs font-semibold uppercase tracking-wider text-ink-secondary">
                                     Próxima Sessão
                                 </p>
                                 {nextSession ? (
                                     <>
-                                        <p className="text-base font-semibold text-[#132226] mt-0.5">
+                                        <p className="text-base font-semibold text-ink mt-0.5">
                                             Sessão com {nextSession.psychologistName}
                                         </p>
-                                        <p className="text-sm text-[#4A5D61] mt-0.5 flex items-center gap-1.5 tabular-nums">
-                                            <Clock className="h-3.5 w-3.5 text-[#3B5B78]" />
+                                        <p className="text-sm text-ink-secondary mt-0.5 flex items-center gap-1.5 tabular-nums">
+                                            <Clock className="h-3.5 w-3.5 text-slate-inst" />
                                             {formatSessionDateTime(nextSession.startTime, nextSession.endTime)}
                                         </p>
                                     </>
                                 ) : (
-                                    <p className="text-sm text-[#4A5D61] mt-1">
+                                    <p className="text-sm text-ink-secondary mt-1">
                                         Nenhuma sessão agendada no momento.
                                     </p>
                                 )}
@@ -148,7 +148,7 @@ export function PatientDashboard() {
 
                         <Link
                             to="/patient/sessions"
-                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[#F9FAF8] hover:bg-[#F0F2ED] text-[#132226] border border-[#E2E6E1] transition self-start sm:self-center shrink-0"
+                            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-subsurface hover:bg-subsurface-muted text-ink border border-border-subtle transition self-start sm:self-center shrink-0"
                         >
                             Ver todas as sessões ({sessions.length})
                             <ArrowRight className="h-3.5 w-3.5" />
@@ -157,16 +157,16 @@ export function PatientDashboard() {
 
                     {/* Profissional(is) Vinculado(s) */}
                     <section className="space-y-4">
-                        <h2 className="font-display text-lg font-semibold text-[#132226]">
+                        <h2 className="font-display text-lg font-semibold text-ink">
                             Profissional Vinculado
                         </h2>
 
                         {activeLinks.length === 0 ? (
-                            <div className="bg-white rounded-2xl border border-[#E2E6E1] p-8 text-center shadow-surface">
-                                <p className="text-sm font-medium text-[#132226]">
+                            <div className="bg-surface rounded-2xl border border-border-subtle p-8 text-center shadow-surface">
+                                <p className="text-sm font-medium text-ink">
                                     Você ainda não possui vínculo ativo com um psicólogo.
                                 </p>
-                                <p className="text-xs text-[#4A5D61] mt-1.5">
+                                <p className="text-xs text-ink-secondary mt-1.5">
                                     Informe seu e-mail cadastrado (<strong>{user?.email}</strong>) ao seu
                                     profissional para iniciar o acompanhamento.
                                 </p>
@@ -176,7 +176,7 @@ export function PatientDashboard() {
                                 {activeLinks.map((link) => (
                                     <article
                                         key={link.id}
-                                        className="bg-white rounded-2xl border border-[#E2E6E1] shadow-surface overflow-hidden"
+                                        className="bg-surface rounded-2xl border border-border-subtle shadow-surface overflow-hidden"
                                     >
                                         <div className="p-6 space-y-5">
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -187,14 +187,14 @@ export function PatientDashboard() {
                                                     />
                                                     <div>
                                                         <div className="flex items-center gap-2 flex-wrap">
-                                                            <h3 className="font-display text-base font-bold text-[#132226]">
+                                                            <h3 className="font-display text-base font-bold text-ink">
                                                                 {link.psychologistName}
                                                             </h3>
-                                                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#EEF3F7] text-[#2E4A63] border border-[#D4E0EB] font-medium tabular-nums">
+                                                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-inst-tint text-slate-inst-ink border border-slate-inst-border font-medium tabular-nums">
                                                                 CRP {link.psychologistCrp}
                                                             </span>
                                                         </div>
-                                                        <p className="text-xs text-[#1E6B63] font-medium mt-0.5">
+                                                        <p className="text-xs text-primary-ink font-medium mt-0.5">
                                                             Abordagem: {link.approach.name}
                                                         </p>
                                                     </div>
@@ -202,13 +202,13 @@ export function PatientDashboard() {
                                             </div>
 
                                             {/* Sub-painel acolhedor da abordagem */}
-                                            <div className="rounded-xl bg-[#E8F3F1] border border-[#C9E2DD] p-4 flex items-start gap-3">
-                                                <BookOpen className="h-5 w-5 text-[#1E6B63] shrink-0 mt-0.5" />
+                                            <div className="rounded-xl bg-primary-tint border border-primary-tint-border p-4 flex items-start gap-3">
+                                                <BookOpen className="h-5 w-5 text-primary-ink shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-xs font-semibold text-[#164E48] mb-1">
+                                                    <p className="text-xs font-semibold text-primary-tint-ink mb-1">
                                                         Como funciona a {link.approach.name}?
                                                     </p>
-                                                    <p className="text-sm text-[#164E48]/90 leading-relaxed">
+                                                    <p className="text-sm text-primary-tint-ink/90 leading-relaxed">
                                                         {link.approach.patientFriendlyDescription}
                                                     </p>
                                                 </div>
@@ -216,8 +216,8 @@ export function PatientDashboard() {
 
                                             {/* Confirmação de rejeição */}
                                             {rejectingLinkId === link.id && (
-                                                <div className="rounded-xl bg-[#FDF0EF] border border-[#F3C9C8] p-4 space-y-3">
-                                                    <p className="text-xs font-medium text-[#9E2A2B]">
+                                                <div className="rounded-xl bg-danger-bg border border-danger-border p-4 space-y-3">
+                                                    <p className="text-xs font-medium text-danger-ink">
                                                         Deseja realmente desvincular este profissional? Esta
                                                         ação bloqueia novos agendamentos por ele.
                                                     </p>
@@ -229,14 +229,14 @@ export function PatientDashboard() {
                                                         value={rejectionReason}
                                                         onChange={(e) => setRejectionReason(e.target.value)}
                                                         placeholder="Motivo opcional (ex.: Não sou paciente deste profissional)"
-                                                        className="w-full px-3 py-2 bg-white border border-[#F3C9C8] rounded-xl text-sm text-[#132226] focus:outline-none focus:ring-2 focus:ring-[#9E2A2B]/20"
+                                                        className="w-full px-3 py-2 bg-surface border border-danger-border rounded-xl text-sm text-ink focus:outline-none focus:ring-2 focus:ring-danger-ink/20"
                                                     />
                                                     <div className="flex gap-2">
                                                         <button
                                                             type="button"
                                                             disabled={rejectingSubmitting}
                                                             onClick={() => handleRejectLink(link.id)}
-                                                            className="px-3.5 py-1.5 bg-[#9E2A2B] hover:bg-[#822223] text-white text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-60 transition"
+                                                            className="px-3.5 py-1.5 bg-danger-solid hover:bg-danger-solid-hover text-white text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-60 transition"
                                                         >
                                                             {rejectingSubmitting
                                                                 ? 'Rejeitando...'
@@ -249,7 +249,7 @@ export function PatientDashboard() {
                                                                 setRejectingLinkId(null);
                                                                 setRejectionReason('');
                                                             }}
-                                                            className="px-3.5 py-1.5 bg-white text-[#4A5D61] text-xs font-medium rounded-lg border border-[#E2E6E1] hover:bg-[#F9FAF8] cursor-pointer disabled:opacity-60 transition"
+                                                            className="px-3.5 py-1.5 bg-surface text-ink-secondary text-xs font-medium rounded-lg border border-border-subtle hover:bg-subsurface-muted cursor-pointer disabled:opacity-60 transition"
                                                         >
                                                             Cancelar
                                                         </button>
@@ -260,8 +260,8 @@ export function PatientDashboard() {
 
                                         {/* Rodapé discreto com ação de segurança */}
                                         {rejectingLinkId !== link.id && (
-                                            <div className="px-6 py-3 bg-[#F9FAF8] border-t border-[#E2E6E1] flex items-center justify-between gap-3">
-                                                <span className="text-xs text-[#4A5D61]">
+                                            <div className="px-6 py-3 bg-subsurface border-t border-border-subtle flex items-center justify-between gap-3">
+                                                <span className="text-xs text-ink-secondary">
                                                     Vínculo ativo para agendamentos clínicos
                                                 </span>
                                                 <button
@@ -270,7 +270,7 @@ export function PatientDashboard() {
                                                         setRejectingLinkId(link.id);
                                                         setRejectionReason('');
                                                     }}
-                                                    className="inline-flex items-center gap-1.5 text-xs font-medium text-[#4A5D61] hover:text-[#9E2A2B] transition cursor-pointer"
+                                                    className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-secondary hover:text-danger-ink transition cursor-pointer"
                                                 >
                                                     <ShieldAlert className="h-3.5 w-3.5" />
                                                     Não reconheço este vínculo
