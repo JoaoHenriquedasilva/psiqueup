@@ -59,3 +59,29 @@ export interface ApiErrorResponse {
     path: string;
     fieldErrors?: Record<string, string>;
 }
+
+export interface AdminDashboardMetrics {
+    activePsychologists: number;
+    inactivePsychologists: number;
+    totalPatients: number;
+    activeLinks: number;
+    averagePatientsPerPsychologist: number;
+    scheduledSessions: number;
+    completedSessions: number;
+    noShowSessions: number;
+    canceledSessions: number;
+    disputedSessions: number;
+}
+
+export interface AdminPsychologistItem {
+    userId: number;
+    name: string;
+    email: string;
+    active: boolean;
+    crp: string | null;
+    approachName: string | null;
+    bio: string | null;
+    activePatientsCount: number;
+    totalSessionsCount: number;
+    disputedSessionsCount: number;
+}

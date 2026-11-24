@@ -1,9 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { DashboardNavbar } from './components/DashboardNavbar';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './contexts/useAuth';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { AdminDashboard } from './pages/AdminDashboard';
 import { PsychologistDashboard } from './pages/PsychologistDashboard';
 import { PatientDashboard } from './pages/PatientDashboard';
 import { getHomeRouteByRole } from './utils/authRoutes';
@@ -47,27 +47,6 @@ function FallbackRedirect() {
     }
 
     return <Navigate to="/login" replace />;
-}
-
-function AdminPlaceholder() {
-    const { user } = useAuth();
-    return (
-        <div className="min-h-screen bg-slate-50">
-            <DashboardNavbar
-                roleBadgeLabel="Administração"
-                roleBadgeClassName="bg-amber-50 text-amber-700"
-                maxWidthClassName="max-w-4xl"
-            />
-            <main className="max-w-4xl mx-auto px-4 py-8">
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <h1 className="text-xl font-bold text-slate-900">Painel do Administrador (Clínica)</h1>
-                    <p className="text-sm text-slate-500 mt-1">
-                        Logado como <strong>{user?.name}</strong> ({user?.role})
-                    </p>
-                </div>
-            </main>
-        </div>
-    );
 }
 
 export function App() {
@@ -114,7 +93,7 @@ export function App() {
                         path="/admin"
                         element={
                             <ProtectedRoute allowedRoles={['ADMIN']}>
-                                <AdminPlaceholder />
+                                <AdminDashboard />
                             </ProtectedRoute>
                         }
                     />
