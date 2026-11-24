@@ -4,6 +4,8 @@ import com.psiqueup.api.domain.entity.PatientPsychologistLink;
 import com.psiqueup.api.domain.enums.LinkStatus;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -24,4 +26,14 @@ public interface PatientPsychologistLinkRepository extends JpaRepository<Patient
 
     @EntityGraph(attributePaths = {"psychologist", "psychologist.user", "psychologist.approach", "patient", "patient.user"})
     List<PatientPsychologistLink> findAllByPsychologistUserId(Long psychologistId);
+
+    long countByStatus(LinkStatus status);
+
+    @Query("""
+            SELECT l.psychologist.userId, COUNT(l)
+            FROM PatientPsychologistLink l
+            WHERE l.status = :status
+            GROUP BY l.psychologist.userId
+            """)
+    List<Object[]> countGroupedByPsychologistAndStatus(@Param("status") LinkStatus status);
 }
