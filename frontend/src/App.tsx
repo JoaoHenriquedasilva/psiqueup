@@ -1,11 +1,16 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './contexts/useAuth';
-import { LoginPage } from './pages/LoginPage';
-import { RegisterPage } from './pages/RegisterPage';
 import { AdminDashboard } from './pages/AdminDashboard';
-import { PsychologistDashboard } from './pages/PsychologistDashboard';
+import { AdminPsychologistsPage } from './pages/AdminPsychologistsPage';
+import { AdminSessionsPage } from './pages/AdminSessionsPage';
+import { LoginPage } from './pages/LoginPage';
 import { PatientDashboard } from './pages/PatientDashboard';
+import { PatientSessionsPage } from './pages/PatientSessionsPage';
+import { PsychologistDashboard } from './pages/PsychologistDashboard';
+import { PsychologistPatientsPage } from './pages/PsychologistPatientsPage';
+import { PsychologistProfilePage } from './pages/PsychologistProfilePage';
+import { RegisterPage } from './pages/RegisterPage';
 import { getHomeRouteByRole } from './utils/authRoutes';
 import type { UserRole } from './types/api';
 
@@ -71,6 +76,7 @@ export function App() {
                         }
                     />
 
+                    {/* Rotas do Psicólogo */}
                     <Route
                         path="/psychologist"
                         element={
@@ -79,7 +85,24 @@ export function App() {
                             </ProtectedRoute>
                         }
                     />
+                    <Route
+                        path="/psychologist/patients"
+                        element={
+                            <ProtectedRoute allowedRoles={['PSYCHOLOGIST']}>
+                                <PsychologistPatientsPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/psychologist/profile"
+                        element={
+                            <ProtectedRoute allowedRoles={['PSYCHOLOGIST']}>
+                                <PsychologistProfilePage />
+                            </ProtectedRoute>
+                        }
+                    />
 
+                    {/* Rotas do Paciente */}
                     <Route
                         path="/patient"
                         element={
@@ -88,12 +111,37 @@ export function App() {
                             </ProtectedRoute>
                         }
                     />
+                    <Route
+                        path="/patient/sessions"
+                        element={
+                            <ProtectedRoute allowedRoles={['PATIENT']}>
+                                <PatientSessionsPage />
+                            </ProtectedRoute>
+                        }
+                    />
 
+                    {/* Rotas do Administrador */}
                     <Route
                         path="/admin"
                         element={
                             <ProtectedRoute allowedRoles={['ADMIN']}>
                                 <AdminDashboard />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/psychologists"
+                        element={
+                            <ProtectedRoute allowedRoles={['ADMIN']}>
+                                <AdminPsychologistsPage />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/sessions"
+                        element={
+                            <ProtectedRoute allowedRoles={['ADMIN']}>
+                                <AdminSessionsPage />
                             </ProtectedRoute>
                         }
                     />

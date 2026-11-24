@@ -1,3 +1,5 @@
+import { AlertCircle, CheckCircle2, X } from 'lucide-react';
+
 export interface FeedbackMessage {
     type: 'success' | 'error';
     text: string;
@@ -16,22 +18,32 @@ export function FeedbackBanner({ feedback, onClose }: FeedbackBannerProps) {
         return null;
     }
 
+    const isSuccess = feedback.type === 'success';
+
     return (
         <div
             role="status"
-            className={`rounded-xl px-4 py-3 text-sm border flex items-center justify-between ${
-                feedback.type === 'success'
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                    : 'bg-red-50 border-red-200 text-red-700'
+            className={`rounded-xl px-4 py-3 text-sm border border-l-4 flex items-center justify-between gap-3 shadow-surface ${
+                isSuccess
+                    ? 'bg-[#E8F4EE] border-[#C6E3D3] border-l-[#1B5E3F] text-[#1B5E3F]'
+                    : 'bg-[#FDF0EF] border-[#F3C9C8] border-l-[#9E2A2B] text-[#9E2A2B]'
             }`}
         >
-            <span>{feedback.text}</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+                {isSuccess ? (
+                    <CheckCircle2 className="h-4 w-4 shrink-0" />
+                ) : (
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                )}
+                <span className="leading-snug">{feedback.text}</span>
+            </div>
             <button
                 type="button"
                 onClick={onClose}
-                className="text-xs underline ml-4 cursor-pointer"
+                aria-label="Fechar aviso"
+                className="p-1 rounded-lg hover:bg-black/5 transition cursor-pointer shrink-0"
             >
-                Fechar
+                <X className="h-4 w-4" />
             </button>
         </div>
     );

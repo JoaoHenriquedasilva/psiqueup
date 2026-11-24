@@ -37,13 +37,16 @@ export function LoginPage() {
 
     return (
         <AuthLayout
-            title="PsiqueUp"
-            subtitle="Gestão clínica e acompanhamento terapêutico"
+            title="Entrar no PsiqueUp"
+            subtitle="Acesse seu painel clínico ou de acompanhamento"
             error={error}
             footer={
                 <>
                     Ainda não tem conta?{' '}
-                    <Link to="/register" className="font-medium text-teal-600 hover:text-teal-700">
+                    <Link
+                        to="/register"
+                        className="font-semibold text-[#1E6B63] hover:text-[#16544E] transition"
+                    >
                         Cadastre-se
                     </Link>
                 </>
@@ -51,11 +54,14 @@ export function LoginPage() {
         >
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                    <label htmlFor="login-email" className="block text-sm font-medium text-slate-700 mb-1">
+                    <label
+                        htmlFor="login-email"
+                        className="block text-sm font-medium text-[#132226] mb-1.5"
+                    >
                         E-mail
                     </label>
                     <div className="relative">
-                        <Mail className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
+                        <Mail className="h-4 w-4 text-[#4A5D61] absolute left-3.5 top-3" />
                         <input
                             id="login-email"
                             type="email"
@@ -64,17 +70,20 @@ export function LoginPage() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="seu@email.com"
-                            className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            className="w-full pl-10 pr-3 py-2.5 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] placeholder:text-[#4A5D61]/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63] transition"
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 mb-1">
+                    <label
+                        htmlFor="login-password"
+                        className="block text-sm font-medium text-[#132226] mb-1.5"
+                    >
                         Senha
                     </label>
                     <div className="relative">
-                        <Lock className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
+                        <Lock className="h-4 w-4 text-[#4A5D61] absolute left-3.5 top-3" />
                         <input
                             id="login-password"
                             type="password"
@@ -82,7 +91,7 @@ export function LoginPage() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="••••••"
-                            className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            className="w-full pl-10 pr-3 py-2.5 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] placeholder:text-[#4A5D61]/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63] transition"
                         />
                     </div>
                 </div>
@@ -90,7 +99,7 @@ export function LoginPage() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white font-medium rounded-lg text-sm transition cursor-pointer"
+                    className="w-full py-2.5 px-4 bg-[#1E6B63] hover:bg-[#16544E] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition cursor-pointer"
                 >
                     {loading ? 'Entrando...' : 'Entrar'}
                 </button>

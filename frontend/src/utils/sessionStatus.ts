@@ -6,11 +6,11 @@ export interface SessionStatusBadge {
 }
 
 export const SESSION_STATUS_LABELS: Record<SessionStatus, SessionStatusBadge> = {
-    SCHEDULED: { label: 'Agendada', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-    COMPLETED: { label: 'Realizada', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-    CANCELED: { label: 'Cancelada', color: 'bg-slate-100 text-slate-600 border-slate-200' },
-    NO_SHOW: { label: 'Falta registrada', color: 'bg-amber-50 text-amber-700 border-amber-200' },
-    DISPUTED: { label: 'Em contestação', color: 'bg-red-50 text-red-700 border-red-200' },
+    SCHEDULED: { label: 'Agendada', color: 'bg-[#EEF3F7] text-[#2E4A63] border-[#D4E0EB]' },
+    COMPLETED: { label: 'Realizada', color: 'bg-[#E8F4EE] text-[#1B5E3F] border-[#C6E3D3]' },
+    CANCELED: { label: 'Cancelada', color: 'bg-[#F1F3F2] text-[#526064] border-[#DCE1DF]' },
+    NO_SHOW: { label: 'Falta registrada', color: 'bg-[#FDF5E6] text-[#8C5311] border-[#F3DFB6]' },
+    DISPUTED: { label: 'Em contestação', color: 'bg-[#FDF0EF] text-[#9E2A2B] border-[#F3C9C8]' },
 };
 
 const DEFAULT_BADGE: SessionStatusBadge = {
