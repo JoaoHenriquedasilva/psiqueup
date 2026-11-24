@@ -20,7 +20,7 @@ function extractInitials(name?: string | null): string {
 export function InitialsAvatar({
     name,
     sizeClassName = 'h-9 w-9 text-xs',
-    className = 'bg-[#E8F3F1] text-[#1E6B63] border border-[#C9E2DD]',
+    className = 'bg-primary-tint text-primary-ink border border-primary-tint-border',
 }: InitialsAvatarProps) {
     return (
         <div
