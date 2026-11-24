@@ -1,80 +1,58 @@
 import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
     AlertTriangle,
+    ArrowRight,
     Calendar,
     CheckCircle2,
     Clock,
-    ExternalLink,
-    ShieldCheck,
+    ShieldAlert,
     UserCheck,
-    UserX,
     Users,
 } from 'lucide-react';
-import { DashboardNavbar } from '../components/DashboardNavbar';
-import { FeedbackBanner, type FeedbackMessage } from '../components/FeedbackBanner';
+import { DashboardShell } from '../components/DashboardShell';
+import { type FeedbackMessage } from '../components/FeedbackBanner';
 import { api } from '../services/api';
 import { extractApiErrorMessage } from '../utils/apiError';
 import { formatSessionDateTime } from '../utils/dateTime';
-import { getSessionStatusBadge } from '../utils/sessionStatus';
+import { ADMIN_NAV_ITEMS } from '../utils/navigation';
 import type {
     AdminDashboardMetrics,
     AdminPsychologistItem,
     SessionItem,
-    SessionStatus,
 } from '../types/api';
 
-type SessionFilter = 'ALL' | SessionStatus;
-
-const SESSION_FILTERS: { value: SessionFilter; label: string }[] = [
-    { value: 'ALL', label: 'Todas' },
-    { value: 'DISPUTED', label: 'Em Contestação' },
-    { value: 'SCHEDULED', label: 'Agendadas' },
-    { value: 'COMPLETED', label: 'Realizadas' },
-    { value: 'NO_SHOW', label: 'Faltas' },
-    { value: 'CANCELED', label: 'Canceladas' },
-];
-
 export function AdminDashboard() {
+    const navigate = useNavigate();
+
     const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
     const [psychologists, setPsychologists] = useState<AdminPsychologistItem[]>([]);
-    const [sessions, setSessions] = useState<SessionItem[]>([]);
-    const [statusFilter, setStatusFilter] = useState<SessionFilter>('ALL');
-
+    const [disputedSessions, setDisputedSessions] = useState<SessionItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
-    const [confirmingDeactivateId, setConfirmingDeactivateId] = useState<number | null>(null);
-    const [updatingUserId, setUpdatingUserId] = useState<number | null>(null);
-    const [resolvingSessionId, setResolvingSessionId] = useState<number | null>(null);
-
-    async function fetchAdminOverview() {
-        const [metricsRes, psychologistsRes] = await Promise.all([
-            api.get<AdminDashboardMetrics>('/admin/dashboard'),
-            api.get<AdminPsychologistItem[]>('/admin/psychologists'),
-        ]);
-        return { metrics: metricsRes.data, psychologists: psychologistsRes.data };
-    }
-
-    async function fetchAdminSessions(filter: SessionFilter) {
-        const params = filter === 'ALL' ? undefined : { status: filter };
-        const { data } = await api.get<SessionItem[]>('/admin/sessions', { params });
-        return data;
-    }
 
     useEffect(() => {
         let cancelled = false;
 
-        Promise.all([fetchAdminOverview(), fetchAdminSessions('ALL')])
-            .then(([overview, sessionsData]) => {
+        Promise.all([
+            api.get<AdminDashboardMetrics>('/admin/dashboard'),
+            api.get<AdminPsychologistItem[]>('/admin/psychologists'),
+            api.get<SessionItem[]>('/admin/sessions', { params: { status: 'DISPUTED' } }),
+        ])
+            .then(([metricsRes, psychologistsRes, disputedRes]) => {
                 if (cancelled) return;
-                setMetrics(overview.metrics);
-                setPsychologists(overview.psychologists);
-                setSessions(sessionsData);
+                setMetrics(metricsRes.data);
+                setPsychologists(psychologistsRes.data);
+                setDisputedSessions(disputedRes.data);
             })
             .catch((err: unknown) => {
                 if (!cancelled) {
                     setFeedback({
                         type: 'error',
-                        text: extractApiErrorMessage(err, 'Erro ao carregar dados do consultório.'),
+                        text: extractApiErrorMessage(
+                            err,
+                            'Erro ao carregar dados do consultório.'
+                        ),
                     });
                 }
             })
@@ -89,433 +67,236 @@ export function AdminDashboard() {
         };
     }, []);
 
-    async function handleFilterChange(nextFilter: SessionFilter) {
-        setStatusFilter(nextFilter);
-        setFeedback(null);
-        try {
-            const data = await fetchAdminSessions(nextFilter);
-            setSessions(data);
-        } catch (err: unknown) {
-            setFeedback({
-                type: 'error',
-                text: extractApiErrorMessage(err, 'Erro ao filtrar sessões da clínica.'),
-            });
-        }
-    }
-
-    async function handleToggleUserStatus(userId: number, nextActive: boolean) {
-        setFeedback(null);
-        setUpdatingUserId(userId);
-        try {
-            await api.patch(`/admin/users/${userId}/status`, { active: nextActive });
-            setConfirmingDeactivateId(null);
-            setPsychologists((prev) =>
-                prev.map((p) => (p.userId === userId ? { ...p, active: nextActive } : p))
-            );
-            setFeedback({
-                type: 'success',
-                text: nextActive
-                    ? 'Conta do psicólogo reativada com sucesso.'
-                    : 'Conta do psicólogo desativada. Sessões ativas de login foram bloqueadas.',
-            });
-
-            try {
-                const overview = await fetchAdminOverview();
-                setMetrics(overview.metrics);
-                setPsychologists(overview.psychologists);
-            } catch {
-                // Mantém o estado já atualizado localmente caso o refresh falhe
-            }
-        } catch (err: unknown) {
-            setFeedback({
-                type: 'error',
-                text: extractApiErrorMessage(err, 'Não foi possível atualizar o status da conta.'),
-            });
-        } finally {
-            setUpdatingUserId(null);
-        }
-    }
-
-    async function handleResolveSession(
-        sessionId: number,
-        resolutionStatus: 'COMPLETED' | 'NO_SHOW' | 'CANCELED'
-    ) {
-        setFeedback(null);
-        setResolvingSessionId(sessionId);
-        try {
-            const { data: resolved } = await api.patch<SessionItem>(
-                `/admin/sessions/${sessionId}/resolve`,
-                { resolutionStatus }
-            );
-            setSessions((prev) =>
-                statusFilter === 'DISPUTED'
-                    ? prev.filter((s) => s.id !== sessionId)
-                    : prev.map((s) => (s.id === sessionId ? resolved : s))
-            );
-            setFeedback({ type: 'success', text: 'Contestação resolvida com sucesso.' });
-
-            try {
-                const overview = await fetchAdminOverview();
-                setMetrics(overview.metrics);
-                setPsychologists(overview.psychologists);
-            } catch {
-                // Mantém a lista atualizada localmente caso o refresh falhe
-            }
-        } catch (err: unknown) {
-            setFeedback({
-                type: 'error',
-                text: extractApiErrorMessage(err, 'Erro ao resolver contestação.'),
-            });
-        } finally {
-            setResolvingSessionId(null);
-        }
-    }
+    const pendingCrpPsychologists = psychologists.filter((p) => !p.crp);
 
     return (
-        <div className="min-h-screen bg-slate-50">
-            <DashboardNavbar
-                roleBadgeLabel="Administração"
-                roleBadgeClassName="bg-amber-50 text-amber-700"
-                maxWidthClassName="max-w-6xl"
-            />
-
-            <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-                <FeedbackBanner feedback={feedback} onClose={() => setFeedback(null)} />
-
-                {loading ? (
-                    <p className="text-center text-slate-500 py-12">Carregando indicadores do consultório...</p>
-                ) : (
-                    <>
-                        {/* Seção 1: Métricas Consolidadas */}
-                        {metrics && (
-                            <section className="space-y-4">
-                                <div>
-                                    <h1 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                                        <ShieldCheck className="h-5 w-5 text-teal-600" />
-                                        Visão Geral do Consultório
-                                    </h1>
-                                    <p className="text-xs text-slate-500">
-                                        Indicadores administrativos e operacionais da clínica (sem dados clínicos sigilosos).
-                                    </p>
+        <DashboardShell
+            roleBadgeLabel="Administração"
+            roleBadgeClassName="bg-[#FDF5E6] text-[#8C5311]"
+            navItems={ADMIN_NAV_ITEMS}
+            pageTitle="Visão Geral"
+            pageSubtitle="Indicadores administrativos e pendências prioritárias da clínica (sem dados clínicos sigilosos)."
+            feedback={feedback}
+            onCloseFeedback={() => setFeedback(null)}
+        >
+            {loading ? (
+                <div className="bg-white rounded-2xl border border-[#E2E6E1] p-12 text-center shadow-surface">
+                    <p className="text-sm text-[#4A5D61]">
+                        Carregando indicadores do consultório...
+                    </p>
+                </div>
+            ) : (
+                <div className="space-y-6">
+                    {/* 4 KPIs */}
+                    {metrics && (
+                        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="bg-white rounded-2xl border border-[#E2E6E1] p-5 shadow-surface">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs font-medium text-[#4A5D61]">Psicólogos</p>
+                                    <div className="h-8 w-8 rounded-lg bg-[#E8F3F1] text-[#1E6B63] flex items-center justify-center">
+                                        <UserCheck className="h-4 w-4" />
+                                    </div>
                                 </div>
+                                <p className="font-display text-2xl font-bold text-[#132226] mt-2 tabular-nums">
+                                    {metrics.activePsychologists}
+                                    <span className="text-sm font-normal text-[#4A5D61] ml-1.5">
+                                        ativos
+                                    </span>
+                                </p>
+                                <p className="text-xs text-[#4A5D61] mt-1 tabular-nums">
+                                    {metrics.inactivePsychologists} inativo(s)
+                                </p>
+                            </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                                        <p className="text-xs font-medium text-slate-500">Psicólogos</p>
-                                        <p className="text-2xl font-bold text-slate-900 mt-1">
-                                            {metrics.activePsychologists}
-                                            <span className="text-sm font-normal text-slate-500 ml-1">ativos</span>
-                                        </p>
-                                        <p className="text-xs text-slate-400 mt-1">
-                                            {metrics.inactivePsychologists} inativo(s)
-                                        </p>
+                            <div className="bg-white rounded-2xl border border-[#E2E6E1] p-5 shadow-surface">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs font-medium text-[#4A5D61]">
+                                        Pacientes & Vínculos
+                                    </p>
+                                    <div className="h-8 w-8 rounded-lg bg-[#EEF3F7] text-[#3B5B78] flex items-center justify-center">
+                                        <Users className="h-4 w-4" />
                                     </div>
+                                </div>
+                                <p className="font-display text-2xl font-bold text-[#132226] mt-2 tabular-nums">
+                                    {metrics.totalPatients}
+                                    <span className="text-sm font-normal text-[#4A5D61] ml-1.5">
+                                        pacientes
+                                    </span>
+                                </p>
+                                <p className="text-xs text-[#4A5D61] mt-1 tabular-nums">
+                                    Média:{' '}
+                                    <strong className="text-[#132226]">
+                                        {metrics.averagePatientsPerPsychologist.toFixed(1)}
+                                    </strong>{' '}
+                                    vínculos/psicólogo
+                                </p>
+                            </div>
 
-                                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                                        <p className="text-xs font-medium text-slate-500">Pacientes & Vínculos</p>
-                                        <p className="text-2xl font-bold text-slate-900 mt-1">
-                                            {metrics.totalPatients}
-                                            <span className="text-sm font-normal text-slate-500 ml-1">pacientes</span>
-                                        </p>
-                                        <p className="text-xs text-slate-500 mt-1">
-                                            Média: <strong>{metrics.averagePatientsPerPsychologist.toFixed(1)}</strong>{' '}
-                                            vínculos/psicólogo
-                                        </p>
+                            <div className="bg-white rounded-2xl border border-[#E2E6E1] p-5 shadow-surface">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs font-medium text-[#4A5D61]">
+                                        Agenda de Sessões
+                                    </p>
+                                    <div className="h-8 w-8 rounded-lg bg-[#EEF3F7] text-[#3B5B78] flex items-center justify-center">
+                                        <Calendar className="h-4 w-4" />
                                     </div>
+                                </div>
+                                <p className="font-display text-2xl font-bold text-[#132226] mt-2 tabular-nums">
+                                    {metrics.scheduledSessions}
+                                    <span className="text-sm font-normal text-[#4A5D61] ml-1.5">
+                                        agendadas
+                                    </span>
+                                </p>
+                                <p className="text-xs text-[#4A5D61] mt-1 tabular-nums">
+                                    {metrics.completedSessions} realizadas • {metrics.noShowSessions}{' '}
+                                    faltas • {metrics.canceledSessions} canceladas
+                                </p>
+                            </div>
 
-                                    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-                                        <p className="text-xs font-medium text-slate-500">Agenda de Sessões</p>
-                                        <p className="text-2xl font-bold text-slate-900 mt-1">
-                                            {metrics.scheduledSessions}
-                                            <span className="text-sm font-normal text-slate-500 ml-1">agendadas</span>
-                                        </p>
-                                        <p className="text-xs text-slate-500 mt-1">
-                                            {metrics.completedSessions} realizadas • {metrics.noShowSessions} faltas •{' '}
-                                            {metrics.canceledSessions} canceladas
-                                        </p>
-                                    </div>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => handleFilterChange('DISPUTED')}
-                                        className={`text-left rounded-2xl border p-5 shadow-sm transition cursor-pointer ${
+                            <button
+                                type="button"
+                                onClick={() => navigate('/admin/sessions?status=DISPUTED')}
+                                className={`text-left rounded-2xl border p-5 shadow-surface transition cursor-pointer ${
+                                    metrics.disputedSessions > 0
+                                        ? 'bg-[#FDF0EF] border-[#F3C9C8] hover:bg-[#FADBD9]/70'
+                                        : 'bg-white border-[#E2E6E1] hover:bg-[#F9FAF8]'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <p
+                                        className={`text-xs font-medium ${
                                             metrics.disputedSessions > 0
-                                                ? 'bg-red-50 border-red-200 hover:bg-red-100/70'
-                                                : 'bg-white border-slate-200 hover:bg-slate-50'
+                                                ? 'text-[#9E2A2B]'
+                                                : 'text-[#4A5D61]'
                                         }`}
                                     >
-                                        <p
-                                            className={`text-xs font-medium flex items-center gap-1.5 ${
-                                                metrics.disputedSessions > 0 ? 'text-red-700' : 'text-slate-500'
-                                            }`}
-                                        >
-                                            <AlertTriangle className="h-3.5 w-3.5" />
-                                            Sessões Contestadas (DISPUTED)
-                                        </p>
-                                        <p
-                                            className={`text-2xl font-bold mt-1 ${
-                                                metrics.disputedSessions > 0 ? 'text-red-700' : 'text-slate-900'
-                                            }`}
-                                        >
-                                            {metrics.disputedSessions}
-                                        </p>
-                                        <p className="text-xs text-slate-500 mt-1">
-                                            Clique para filtrar e auditar
-                                        </p>
-                                    </button>
-                                </div>
-                            </section>
-                        )}
-
-                        {/* Seção 2: Psicólogos & Governança de CRP */}
-                        <section className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-                                <div>
-                                    <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                                        <Users className="h-5 w-5 text-teal-600" />
-                                        Psicólogos da Clínica & Governança de CRP
-                                    </h2>
-                                    <p className="text-xs text-slate-500">
-                                        Valide registros profissionais no CFP e ative ou desative o acesso dos profissionais.
+                                        Sessões Contestadas
                                     </p>
+                                    <div
+                                        className={`h-8 w-8 rounded-lg flex items-center justify-center ${
+                                            metrics.disputedSessions > 0
+                                                ? 'bg-[#9E2A2B]/10 text-[#9E2A2B]'
+                                                : 'bg-[#F0F2ED] text-[#4A5D61]'
+                                        }`}
+                                    >
+                                        <AlertTriangle className="h-4 w-4" />
+                                    </div>
                                 </div>
-
-                                <a
-                                    href="https://cadastro.cfp.org.br/"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg border border-teal-200 self-start"
+                                <p
+                                    className={`font-display text-2xl font-bold mt-2 tabular-nums ${
+                                        metrics.disputedSessions > 0
+                                            ? 'text-[#9E2A2B]'
+                                            : 'text-[#132226]'
+                                    }`}
                                 >
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                    Consultar Cadastro Nacional CFP
-                                </a>
-                            </div>
-
-                            {psychologists.length === 0 ? (
-                                <p className="text-sm text-slate-400 text-center py-6">
-                                    Nenhum psicólogo cadastrado até o momento.
+                                    {metrics.disputedSessions}
                                 </p>
-                            ) : (
-                                <div className="divide-y divide-slate-100">
-                                    {psychologists.map((psych) => {
-                                        const isUpdating = updatingUserId === psych.userId;
-                                        const isConfirming = confirmingDeactivateId === psych.userId;
-
-                                        return (
-                                            <div key={psych.userId} className="py-4 space-y-3">
-                                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <p className="text-sm font-semibold text-slate-900">
-                                                                {psych.name}
-                                                            </p>
-                                                            <span
-                                                                className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
-                                                                    psych.active
-                                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                                        : 'bg-slate-100 text-slate-600 border-slate-200'
-                                                                }`}
-                                                            >
-                                                                {psych.active ? 'Ativo' : 'Inativo'}
-                                                            </span>
-                                                            {psych.crp ? (
-                                                                <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium">
-                                                                    CRP {psych.crp}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-medium">
-                                                                    CRP Pendente
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <p className="text-xs text-slate-500">
-                                                            {psych.email}
-                                                            {psych.approachName ? ` • ${psych.approachName}` : ''}
-                                                        </p>
-                                                        <p className="text-xs text-slate-500">
-                                                            {psych.activePatientsCount} paciente(s) ativo(s) •{' '}
-                                                            {psych.totalSessionsCount} sessão(ões)
-                                                            {psych.disputedSessionsCount > 0 && (
-                                                                <span className="text-red-600 font-medium ml-1">
-                                                                    • {psych.disputedSessionsCount} contestação(ões)
-                                                                </span>
-                                                            )}
-                                                        </p>
-                                                    </div>
-
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        {psych.active ? (
-                                                            !isConfirming && (
-                                                                <button
-                                                                    type="button"
-                                                                    disabled={isUpdating}
-                                                                    onClick={() => setConfirmingDeactivateId(psych.userId)}
-                                                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 rounded-lg border border-red-200 cursor-pointer disabled:opacity-60"
-                                                                >
-                                                                    <UserX className="h-3.5 w-3.5" />
-                                                                    Desativar conta
-                                                                </button>
-                                                            )
-                                                        ) : (
-                                                            <button
-                                                                type="button"
-                                                                disabled={isUpdating}
-                                                                onClick={() => handleToggleUserStatus(psych.userId, true)}
-                                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 cursor-pointer disabled:opacity-60"
-                                                            >
-                                                                <UserCheck className="h-3.5 w-3.5" />
-                                                                {isUpdating ? 'Reativando...' : 'Reativar conta'}
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                {isConfirming && (
-                                                    <div className="rounded-xl bg-red-50 border border-red-200 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                                        <p className="text-xs font-medium text-red-800">
-                                                            Desativar o acesso de <strong>{psych.name}</strong>? O token atual será invalidado imediatamente.
-                                                        </p>
-                                                        <div className="flex items-center gap-2 shrink-0">
-                                                            <button
-                                                                type="button"
-                                                                disabled={isUpdating}
-                                                                onClick={() => handleToggleUserStatus(psych.userId, false)}
-                                                                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg cursor-pointer disabled:opacity-60"
-                                                            >
-                                                                {isUpdating ? 'Desativando...' : 'Confirmar desativação'}
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                disabled={isUpdating}
-                                                                onClick={() => setConfirmingDeactivateId(null)}
-                                                                className="px-3 py-1.5 bg-white text-slate-700 text-xs font-medium rounded-lg border border-slate-200 cursor-pointer disabled:opacity-60"
-                                                            >
-                                                                Voltar
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                                <p className="text-xs text-[#4A5D61] mt-1 flex items-center gap-1">
+                                    Auditar contestações
+                                    <ArrowRight className="h-3 w-3" />
+                                </p>
+                            </button>
                         </section>
+                    )}
 
-                        {/* Seção 3: Auditoria de Sessões */}
-                        <section className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
-                                <div>
-                                    <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                                        <Calendar className="h-5 w-5 text-teal-600" />
-                                        Auditoria de Sessões
+                    {/* Pendências Prioritárias */}
+                    <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Contestações DISPUTED */}
+                        <div className="bg-white rounded-2xl border border-[#E2E6E1] p-6 shadow-surface flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between gap-2 mb-4">
+                                    <h2 className="font-display text-base font-semibold text-[#132226] flex items-center gap-2">
+                                        <AlertTriangle className="h-4 w-4 text-[#9E2A2B]" />
+                                        Contestações em Aberto
                                     </h2>
-                                    <p className="text-xs text-slate-500">
-                                        Acompanhe todas as sessões da clínica e resolva contestações abertas pelos pacientes.
-                                    </p>
+                                    <Link
+                                        to="/admin/sessions?status=DISPUTED"
+                                        className="text-xs font-semibold text-[#1E6B63] hover:text-[#16544E] inline-flex items-center gap-1"
+                                    >
+                                        Resolver na Auditoria
+                                        <ArrowRight className="h-3.5 w-3.5" />
+                                    </Link>
                                 </div>
 
-                                <div className="flex flex-wrap gap-1.5">
-                                    {SESSION_FILTERS.map((filter) => (
-                                        <button
-                                            key={filter.value}
-                                            type="button"
-                                            onClick={() => handleFilterChange(filter.value)}
-                                            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition cursor-pointer ${
-                                                statusFilter === filter.value
-                                                    ? 'bg-teal-600 text-white border-teal-600'
-                                                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                                            }`}
-                                        >
-                                            {filter.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {sessions.length === 0 ? (
-                                <p className="text-sm text-slate-400 text-center py-8">
-                                    Nenhuma sessão encontrada para o filtro selecionado.
-                                </p>
-                            ) : (
-                                <div className="divide-y divide-slate-100">
-                                    {sessions.map((session) => {
-                                        const badge = getSessionStatusBadge(session.status);
-                                        const isResolving = resolvingSessionId === session.id;
-
-                                        return (
-                                            <div
-                                                key={session.id}
-                                                className="py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3"
-                                            >
-                                                <div className="flex items-start gap-3">
-                                                    <div className="p-2 rounded-lg bg-slate-100 text-slate-600 mt-0.5">
-                                                        <Clock className="h-4 w-4" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-medium text-slate-900">
-                                                            {session.psychologistName}{' '}
-                                                            <span className="text-slate-400 font-normal">→</span>{' '}
-                                                            {session.patientName}
-                                                        </p>
-                                                        <p className="text-xs text-slate-500">
-                                                            {formatSessionDateTime(session.startTime, session.endTime)}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <span
-                                                        className={`text-xs px-2.5 py-1 rounded-full font-medium border ${badge.color}`}
-                                                    >
-                                                        {badge.label}
-                                                    </span>
-
-                                                    {session.status === 'DISPUTED' && (
-                                                        <>
-                                                            <button
-                                                                type="button"
-                                                                disabled={isResolving}
-                                                                onClick={() =>
-                                                                    handleResolveSession(session.id, 'COMPLETED')
-                                                                }
-                                                                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 cursor-pointer disabled:opacity-60"
-                                                            >
-                                                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                                                Confirmar Realizada
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                disabled={isResolving}
-                                                                onClick={() =>
-                                                                    handleResolveSession(session.id, 'NO_SHOW')
-                                                                }
-                                                                className="px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 cursor-pointer disabled:opacity-60"
-                                                            >
-                                                                Registrar Falta
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                disabled={isResolving}
-                                                                onClick={() =>
-                                                                    handleResolveSession(session.id, 'CANCELED')
-                                                                }
-                                                                className="px-2.5 py-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 cursor-pointer disabled:opacity-60"
-                                                            >
-                                                                Cancelar Sessão
-                                                            </button>
-                                                        </>
+                                {disputedSessions.length === 0 ? (
+                                    <div className="rounded-xl bg-[#F9FAF8] border border-[#E2E6E1] p-5 flex items-center gap-3 text-sm text-[#4A5D61]">
+                                        <CheckCircle2 className="h-4 w-4 text-[#1B5E3F] shrink-0" />
+                                        Nenhuma sessão em contestação no momento.
+                                    </div>
+                                ) : (
+                                    <div className="divide-y divide-[#E2E6E1]">
+                                        {disputedSessions.slice(0, 5).map((session) => (
+                                            <div key={session.id} className="py-3">
+                                                <p className="text-sm font-medium text-[#132226]">
+                                                    {session.psychologistName}{' '}
+                                                    <span className="text-[#4A5D61] font-normal">
+                                                        →
+                                                    </span>{' '}
+                                                    {session.patientName}
+                                                </p>
+                                                <p className="text-xs text-[#4A5D61] mt-0.5 flex items-center gap-1.5 tabular-nums">
+                                                    <Clock className="h-3.5 w-3.5" />
+                                                    {formatSessionDateTime(
+                                                        session.startTime,
+                                                        session.endTime
                                                     )}
-                                                </div>
+                                                </p>
                                             </div>
-                                        );
-                                    })}
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Psicólogos com CRP Pendente */}
+                        <div className="bg-white rounded-2xl border border-[#E2E6E1] p-6 shadow-surface flex flex-col justify-between">
+                            <div>
+                                <div className="flex items-center justify-between gap-2 mb-4">
+                                    <h2 className="font-display text-base font-semibold text-[#132226] flex items-center gap-2">
+                                        <ShieldAlert className="h-4 w-4 text-[#8C5311]" />
+                                        Psicólogos com CRP Pendente
+                                    </h2>
+                                    <Link
+                                        to="/admin/psychologists"
+                                        className="text-xs font-semibold text-[#1E6B63] hover:text-[#16544E] inline-flex items-center gap-1"
+                                    >
+                                        Gerenciar Psicólogos
+                                        <ArrowRight className="h-3.5 w-3.5" />
+                                    </Link>
                                 </div>
-                            )}
-                        </section>
-                    </>
-                )}
-            </main>
-        </div>
+
+                                {pendingCrpPsychologists.length === 0 ? (
+                                    <div className="rounded-xl bg-[#F9FAF8] border border-[#E2E6E1] p-5 flex items-center gap-3 text-sm text-[#4A5D61]">
+                                        <CheckCircle2 className="h-4 w-4 text-[#1B5E3F] shrink-0" />
+                                        Todos os psicólogos cadastrados já possuem CRP informado.
+                                    </div>
+                                ) : (
+                                    <div className="divide-y divide-[#E2E6E1]">
+                                        {pendingCrpPsychologists.slice(0, 5).map((psych) => (
+                                            <div
+                                                key={psych.userId}
+                                                className="py-3 flex items-center justify-between gap-3"
+                                            >
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-medium text-[#132226] truncate">
+                                                        {psych.name}
+                                                    </p>
+                                                    <p className="text-xs text-[#4A5D61] truncate">
+                                                        {psych.email}
+                                                    </p>
+                                                </div>
+                                                <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#FDF5E6] text-[#8C5311] border border-[#F3DFB6] font-medium shrink-0">
+                                                    CRP Pendente
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            )}
+        </DashboardShell>
     );
 }
