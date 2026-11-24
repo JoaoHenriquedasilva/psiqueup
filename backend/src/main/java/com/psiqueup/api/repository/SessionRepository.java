@@ -23,6 +23,23 @@ public interface SessionRepository extends JpaRepository<Session, Long> {
     @EntityGraph(attributePaths = {"psychologist", "psychologist.user", "patient", "patient.user"})
     List<Session> findAllByPatientUserIdOrderByStartTimeAsc(Long patientId);
 
+    @EntityGraph(attributePaths = {"psychologist", "psychologist.user", "patient", "patient.user"})
+    List<Session> findAllByOrderByStartTimeDesc();
+
+    @EntityGraph(attributePaths = {"psychologist", "psychologist.user", "patient", "patient.user"})
+    List<Session> findAllByStatusOrderByStartTimeDesc(SessionStatus status);
+
+    long countByStatus(SessionStatus status);
+
+    @Query("""
+            SELECT s.psychologist.userId,
+                   COUNT(s),
+                   SUM(CASE WHEN s.status = :disputedStatus THEN 1 ELSE 0 END)
+            FROM Session s
+            GROUP BY s.psychologist.userId
+            """)
+    List<Object[]> countGroupedByPsychologist(@Param("disputedStatus") SessionStatus disputedStatus);
+
     List<Session> findAllByPsychologistUserIdAndPatientUserIdAndStatus(
             Long psychologistId,
             Long patientId,
