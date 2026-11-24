@@ -1,16 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import {
+    AlertCircle,
+    ArrowRight,
+    BadgeAlert,
     Calendar,
     CheckCircle2,
     Clock,
     Plus,
-    UserPlus,
-    Users,
     XCircle,
-    AlertCircle,
 } from 'lucide-react';
-import { DashboardNavbar } from '../components/DashboardNavbar';
-import { FeedbackBanner, type FeedbackMessage } from '../components/FeedbackBanner';
+import { DashboardShell } from '../components/DashboardShell';
+import { type FeedbackMessage } from '../components/FeedbackBanner';
 import { api } from '../services/api';
 import { extractApiErrorMessage, isApiHttpStatus } from '../utils/apiError';
 import {
@@ -18,34 +19,21 @@ import {
     getTodayDateInputValue,
     localDateTimeToIso,
 } from '../utils/dateTime';
+import { PSYCHOLOGIST_NAV_ITEMS } from '../utils/navigation';
 import { getSessionStatusBadge } from '../utils/sessionStatus';
 import type {
     PsychologistProfile,
     SessionItem,
     SessionStatus,
-    TherapeuticApproach,
     TherapeuticLink,
 } from '../types/api';
 
-const BRAZILIAN_CRP_REGEX = /^(0[1-9]|1[0-9]|2[0-4])\/\d{4,6}$/;
-
 export function PsychologistDashboard() {
-    const [approaches, setApproaches] = useState<TherapeuticApproach[]>([]);
-    const [profile, setProfile] = useState<PsychologistProfile | null>(null);
+    const [profileMissing, setProfileMissing] = useState(false);
     const [links, setLinks] = useState<TherapeuticLink[]>([]);
     const [sessions, setSessions] = useState<SessionItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
-
-    // Form Perfil Profissional
-    const [crp, setCrp] = useState('');
-    const [approachId, setApproachId] = useState<number | ''>('');
-    const [bio, setBio] = useState('');
-    const [savingProfile, setSavingProfile] = useState(false);
-
-    // Form Novo Vínculo
-    const [patientEmail, setPatientEmail] = useState('');
-    const [linkingPatient, setLinkingPatient] = useState(false);
 
     // Form Nova Sessão
     const [selectedPatientId, setSelectedPatientId] = useState<number | ''>('');
@@ -61,42 +49,39 @@ export function PsychologistDashboard() {
     useEffect(() => {
         let cancelled = false;
 
-        async function loadAllData() {
+        async function loadAgendaData() {
             try {
-                const [approachesRes, linksRes, sessionsRes] = await Promise.all([
-                    api.get<TherapeuticApproach[]>('/approaches'),
+                const [linksRes, sessionsRes] = await Promise.all([
                     api.get<TherapeuticLink[]>('/links'),
                     api.get<SessionItem[]>('/sessions'),
                 ]);
 
                 if (cancelled) return;
-                setApproaches(approachesRes.data);
                 setLinks(linksRes.data);
                 setSessions(sessionsRes.data);
 
                 try {
-                    const profileRes = await api.get<PsychologistProfile>('/profiles/psychologist/me');
-                    if (cancelled) return;
-                    setProfile(profileRes.data);
-                    setCrp(profileRes.data.crp);
-                    setApproachId(profileRes.data.approach.id);
-                    setBio(profileRes.data.bio || '');
+                    await api.get<PsychologistProfile>('/profiles/psychologist/me');
+                    if (!cancelled) {
+                        setProfileMissing(false);
+                    }
                 } catch (profileErr: unknown) {
                     if (cancelled) return;
                     if (isApiHttpStatus(profileErr, 404)) {
-                        if (approachesRes.data.length > 0) {
-                            setApproachId(approachesRes.data[0].id);
-                        }
+                        setProfileMissing(true);
                     } else {
                         setFeedback({
                             type: 'error',
-                            text: extractApiErrorMessage(profileErr, 'Erro ao carregar perfil profissional.'),
+                            text: extractApiErrorMessage(
+                                profileErr,
+                                'Erro ao verificar perfil profissional.'
+                            ),
                         });
                     }
                 }
             } catch {
                 if (!cancelled) {
-                    setFeedback({ type: 'error', text: 'Erro ao carregar dados do painel.' });
+                    setFeedback({ type: 'error', text: 'Erro ao carregar dados da agenda.' });
                 }
             } finally {
                 if (!cancelled) {
@@ -105,85 +90,11 @@ export function PsychologistDashboard() {
             }
         }
 
-        void loadAllData();
+        void loadAgendaData();
         return () => {
             cancelled = true;
         };
     }, []);
-
-    async function handleSaveProfile(e: FormEvent) {
-        e.preventDefault();
-        const trimmedCrp = crp.trim();
-        if (!trimmedCrp || !approachId) {
-            setFeedback({
-                type: 'error',
-                text: 'Preencha o CRP e selecione uma abordagem terapêutica.',
-            });
-            return;
-        }
-
-        if (!BRAZILIAN_CRP_REGEX.test(trimmedCrp)) {
-            setFeedback({
-                type: 'error',
-                text: 'Informe um CRP brasileiro válido no formato XX/NNNNN (ex.: 06/12345).',
-            });
-            return;
-        }
-
-        setSavingProfile(true);
-        setFeedback(null);
-        try {
-            const { data } = await api.put<PsychologistProfile>('/profiles/psychologist', {
-                crp: trimmedCrp,
-                approachId: Number(approachId),
-                bio: bio.trim() || null,
-            });
-            setProfile(data);
-            setCrp(data.crp);
-            setFeedback({ type: 'success', text: 'Perfil profissional atualizado com sucesso!' });
-        } catch (err: unknown) {
-            setFeedback({
-                type: 'error',
-                text: extractApiErrorMessage(err, 'Erro ao salvar perfil profissional.'),
-            });
-        } finally {
-            setSavingProfile(false);
-        }
-    }
-
-    async function handleLinkPatient(e: FormEvent) {
-        e.preventDefault();
-        const trimmedEmail = patientEmail.trim();
-        if (!trimmedEmail) {
-            setFeedback({ type: 'error', text: 'Informe o e-mail do paciente.' });
-            return;
-        }
-
-        setLinkingPatient(true);
-        setFeedback(null);
-        try {
-            const { data: createdLink } = await api.post<TherapeuticLink>('/links', {
-                patientEmail: trimmedEmail,
-            });
-            setPatientEmail('');
-            setLinks((prev) => [...prev, createdLink]);
-            setFeedback({ type: 'success', text: 'Paciente vinculado com sucesso!' });
-
-            try {
-                const { data } = await api.get<TherapeuticLink[]>('/links');
-                setLinks(data);
-            } catch {
-                // Mantém o estado já atualizado localmente se a recarga falhar
-            }
-        } catch (err: unknown) {
-            setFeedback({
-                type: 'error',
-                text: extractApiErrorMessage(err, 'Não foi possível vincular o paciente.'),
-            });
-        } finally {
-            setLinkingPatient(false);
-        }
-    }
 
     async function handleScheduleSession(e: FormEvent) {
         e.preventDefault();
@@ -307,326 +218,227 @@ export function PsychologistDashboard() {
     const activeLinks = links.filter((l) => l.status === 'ACTIVE');
 
     return (
-        <div className="min-h-screen bg-slate-50">
-            <DashboardNavbar
-                roleBadgeLabel="Psicólogo(a)"
-                roleBadgeClassName="bg-teal-50 text-teal-700"
-                maxWidthClassName="max-w-6xl"
-            />
-
-            <main className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-                <FeedbackBanner feedback={feedback} onClose={() => setFeedback(null)} />
-
-                {loading ? (
-                    <p className="text-center text-slate-500 py-12">Carregando informações clínicas...</p>
-                ) : (
-                    <>
-                        {/* Linha 1: Perfil Profissional + Vincular Paciente */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* Perfil Profissional */}
-                            <section className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                                <h2 className="text-lg font-semibold text-slate-900 mb-1">Perfil Profissional</h2>
-                                <p className="text-xs text-slate-500 mb-4">
-                                    Configure seu CRP e abordagem terapêutica visíveis aos seus pacientes.
-                                </p>
-
-                                <form onSubmit={handleSaveProfile} className="space-y-4">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div>
-                                            <label
-                                                htmlFor="psych-crp"
-                                                className="block text-xs font-medium text-slate-700 mb-1"
-                                            >
-                                                CRP
-                                            </label>
-                                            <input
-                                                id="psych-crp"
-                                                type="text"
-                                                required
-                                                maxLength={20}
-                                                pattern="^\s*(0[1-9]|1[0-9]|2[0-4])/\d{4,6}\s*$"
-                                                title="Formato brasileiro XX/NNNNN (regiões 01 a 24, ex.: 06/12345)"
-                                                value={crp}
-                                                onChange={(e) => setCrp(e.target.value)}
-                                                placeholder="Ex.: 06/12345"
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label
-                                                htmlFor="psych-approach"
-                                                className="block text-xs font-medium text-slate-700 mb-1"
-                                            >
-                                                Abordagem Terapêutica
-                                            </label>
-                                            <select
-                                                id="psych-approach"
-                                                required
-                                                value={approachId}
-                                                onChange={(e) =>
-                                                    setApproachId(e.target.value ? Number(e.target.value) : '')
-                                                }
-                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                            >
-                                                <option value="">Selecione...</option>
-                                                {approaches.map((app) => (
-                                                    <option key={app.id} value={app.id}>
-                                                        {app.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label
-                                            htmlFor="psych-bio"
-                                            className="block text-xs font-medium text-slate-700 mb-1"
-                                        >
-                                            Apresentação / Bio (opcional)
-                                        </label>
-                                        <textarea
-                                            id="psych-bio"
-                                            rows={2}
-                                            maxLength={500}
-                                            value={bio}
-                                            onChange={(e) => setBio(e.target.value)}
-                                            placeholder="Breve descrição da sua atuação clínica..."
-                                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                        />
-                                    </div>
-
-                                    <button
-                                        type="submit"
-                                        disabled={savingProfile || approaches.length === 0 || !approachId}
-                                        className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition cursor-pointer disabled:opacity-60"
-                                    >
-                                        {savingProfile ? 'Salvando...' : profile ? 'Atualizar Perfil' : 'Ativar Perfil'}
-                                    </button>
-                                </form>
-                            </section>
-
-                            {/* Vincular Paciente */}
-                            <section className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
+        <DashboardShell
+            roleBadgeLabel="Psicólogo(a)"
+            roleBadgeClassName="bg-[#E8F3F1] text-[#164E48]"
+            navItems={PSYCHOLOGIST_NAV_ITEMS}
+            pageTitle="Agenda & Sessões"
+            pageSubtitle="Agende horários com pacientes ativos e acompanhe o status dos atendimentos."
+            feedback={feedback}
+            onCloseFeedback={() => setFeedback(null)}
+        >
+            {loading ? (
+                <div className="bg-white rounded-2xl border border-[#E2E6E1] p-12 text-center shadow-surface">
+                    <p className="text-sm text-[#4A5D61]">Carregando informações clínicas...</p>
+                </div>
+            ) : (
+                <div className="space-y-6">
+                    {/* Banner de Onboarding quando perfil profissional não existe (404) */}
+                    {profileMissing && (
+                        <div className="rounded-2xl bg-[#FDF5E6] border border-[#F3DFB6] p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-surface">
+                            <div className="flex items-start gap-3">
+                                <BadgeAlert className="h-5 w-5 text-[#8C5311] shrink-0 mt-0.5" />
                                 <div>
-                                    <h2 className="text-lg font-semibold text-slate-900 mb-1 flex items-center gap-2">
-                                        <Users className="h-5 w-5 text-teal-600" />
-                                        Meus Pacientes
-                                    </h2>
-                                    <p className="text-xs text-slate-500 mb-4">
-                                        Vincule um paciente cadastrado pelo e-mail para liberar o agendamento.
+                                    <p className="text-sm font-semibold text-[#8C5311]">
+                                        Complete seu Perfil Profissional para ativar seus atendimentos
                                     </p>
-
-                                    <form onSubmit={handleLinkPatient} className="flex gap-2 mb-5">
-                                        <input
-                                            id="link-patient-email"
-                                            aria-label="E-mail do paciente para vínculo"
-                                            type="email"
-                                            required
-                                            maxLength={150}
-                                            value={patientEmail}
-                                            onChange={(e) => setPatientEmail(e.target.value)}
-                                            placeholder="E-mail do paciente..."
-                                            className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                        />
-                                        <button
-                                            type="submit"
-                                            disabled={linkingPatient}
-                                            className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition cursor-pointer disabled:opacity-60"
-                                        >
-                                            <UserPlus className="h-4 w-4" />
-                                            {linkingPatient ? 'Vinculando...' : 'Vincular'}
-                                        </button>
-                                    </form>
-
-                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                        {links.length === 0 ? (
-                                            <p className="text-sm text-slate-400 text-center py-4">
-                                                Nenhum paciente vinculado ainda.
-                                            </p>
-                                        ) : (
-                                            links.map((link) => (
-                                                <div
-                                                    key={link.id}
-                                                    className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50"
-                                                >
-                                                    <div>
-                                                        <p className="text-sm font-medium text-slate-900">{link.patientName}</p>
-                                                        <p className="text-xs text-slate-500">{link.patientEmail}</p>
-                                                        {link.status === 'REJECTED' && link.rejectionReason && (
-                                                            <p className="text-xs text-red-600 mt-1">
-                                                                Motivo: {link.rejectionReason}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                    <span
-                                                        className={`text-xs px-2.5 py-0.5 rounded-full font-medium border ${link.status === 'ACTIVE'
-                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                            : 'bg-red-50 text-red-700 border-red-200'
-                                                            }`}
-                                                    >
-                                                        {link.status === 'ACTIVE' ? 'Ativo' : 'Rejeitado'}
-                                                    </span>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
+                                    <p className="text-xs text-[#8C5311]/90 mt-0.5">
+                                        Configure seu número de CRP e sua abordagem terapêutica para
+                                        vincular pacientes e realizar agendamentos.
+                                    </p>
                                 </div>
-                            </section>
+                            </div>
+                            <Link
+                                to="/psychologist/profile"
+                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#8C5311] hover:bg-[#70420D] text-white text-xs font-semibold rounded-xl transition self-start sm:self-center shrink-0"
+                            >
+                                Configurar CRP e Abordagem
+                                <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                        </div>
+                    )}
+
+                    {/* Card Novo Agendamento */}
+                    <section className="bg-white rounded-2xl border border-[#E2E6E1] p-6 shadow-surface">
+                        <div className="mb-4">
+                            <h2 className="font-display text-lg font-semibold text-[#132226]">
+                                Novo Agendamento
+                            </h2>
+                            <p className="text-xs text-[#4A5D61] mt-0.5">
+                                Selecione um paciente com vínculo ativo para reservar um novo horário.
+                            </p>
                         </div>
 
-                        {/* Linha 2: Agendar Sessão + Lista de Sessões */}
-                        <section className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                                <div>
-                                    <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                                        <Calendar className="h-5 w-5 text-teal-600" />
-                                        Agenda de Sessões
-                                    </h2>
-                                    <p className="text-xs text-slate-500">
-                                        Agende horários com pacientes ativos e acompanhe o status dos atendimentos.
-                                    </p>
-                                </div>
+                        {activeLinks.length === 0 && (
+                            <p className="text-xs text-[#8C5311] bg-[#FDF5E6] border border-[#F3DFB6] rounded-xl px-3.5 py-2.5 mb-4">
+                                Você ainda não possui pacientes ativos vinculados.{' '}
+                                <Link
+                                    to="/psychologist/patients"
+                                    className="font-semibold underline hover:opacity-80"
+                                >
+                                    Vincular paciente
+                                </Link>
+                            </p>
+                        )}
 
-                                {/* Formulário compacto de agendamento */}
-                                <form onSubmit={handleScheduleSession} className="flex flex-wrap items-end gap-2">
-                                    <div>
-                                        <label
-                                            htmlFor="schedule-patient"
-                                            className="block text-[11px] font-medium text-slate-600 mb-1"
-                                        >
-                                            Paciente Ativo
-                                        </label>
-                                        <select
-                                            id="schedule-patient"
-                                            required
-                                            value={selectedPatientId}
-                                            onChange={(e) =>
-                                                setSelectedPatientId(
-                                                    e.target.value ? Number(e.target.value) : ''
-                                                )
-                                            }
-                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                        >
-                                            <option value="">Selecione...</option>
-                                            {activeLinks.map((l) => (
-                                                <option key={l.patientId} value={l.patientId}>
-                                                    {l.patientName}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label
-                                            htmlFor="schedule-date"
-                                            className="block text-[11px] font-medium text-slate-600 mb-1"
-                                        >
-                                            Data
-                                        </label>
-                                        <input
-                                            id="schedule-date"
-                                            type="date"
-                                            required
-                                            min={getTodayDateInputValue()}
-                                            value={sessionDate}
-                                            onChange={(e) => setSessionDate(e.target.value)}
-                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label
-                                            htmlFor="schedule-start"
-                                            className="block text-[11px] font-medium text-slate-600 mb-1"
-                                        >
-                                            Início
-                                        </label>
-                                        <input
-                                            id="schedule-start"
-                                            type="time"
-                                            required
-                                            value={startHour}
-                                            onChange={(e) => setStartHour(e.target.value)}
-                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label
-                                            htmlFor="schedule-end"
-                                            className="block text-[11px] font-medium text-slate-600 mb-1"
-                                        >
-                                            Fim
-                                        </label>
-                                        <input
-                                            id="schedule-end"
-                                            type="time"
-                                            required
-                                            value={endHour}
-                                            onChange={(e) => setEndHour(e.target.value)}
-                                            className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                                        />
-                                    </div>
-
-                                    <button
-                                        type="submit"
-                                        disabled={scheduling || activeLinks.length === 0}
-                                        className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg transition cursor-pointer disabled:opacity-60"
-                                    >
-                                        <Plus className="h-4 w-4" />
-                                        {scheduling ? 'Agendando...' : 'Agendar'}
-                                    </button>
-                                </form>
+                        <form
+                            onSubmit={handleScheduleSession}
+                            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end"
+                        >
+                            <div>
+                                <label
+                                    htmlFor="schedule-patient"
+                                    className="block text-xs font-medium text-[#4A5D61] mb-1.5"
+                                >
+                                    Paciente Ativo
+                                </label>
+                                <select
+                                    id="schedule-patient"
+                                    required
+                                    value={selectedPatientId}
+                                    onChange={(e) =>
+                                        setSelectedPatientId(
+                                            e.target.value ? Number(e.target.value) : ''
+                                        )
+                                    }
+                                    className="w-full px-3 py-2 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63]"
+                                >
+                                    <option value="">Selecione...</option>
+                                    {activeLinks.map((l) => (
+                                        <option key={l.patientId} value={l.patientId}>
+                                            {l.patientName}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
 
-                            {sessions.length === 0 ? (
-                                <p className="text-sm text-slate-400 text-center py-8">
-                                    Nenhuma sessão agendada até o momento.
-                                </p>
-                            ) : (
-                                <div className="divide-y divide-slate-100">
-                                    {sessions.map((session) => {
-                                        const badge = getSessionStatusBadge(session.status);
-                                        const isUpdatingThis = updatingSessionId === session.id;
-                                        const isConfirmingEarly = confirmingEarlySessionId === session.id;
+                            <div>
+                                <label
+                                    htmlFor="schedule-date"
+                                    className="block text-xs font-medium text-[#4A5D61] mb-1.5"
+                                >
+                                    Data
+                                </label>
+                                <input
+                                    id="schedule-date"
+                                    type="date"
+                                    required
+                                    min={getTodayDateInputValue()}
+                                    value={sessionDate}
+                                    onChange={(e) => setSessionDate(e.target.value)}
+                                    className="w-full px-3 py-2 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] tabular-nums focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63]"
+                                />
+                            </div>
 
-                                        return (
-                                            <div
-                                                key={session.id}
-                                                className="py-3.5 space-y-3"
-                                            >
-                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                                    <div className="flex items-start gap-3">
-                                                        <div className="p-2 rounded-lg bg-slate-100 text-slate-600 mt-0.5">
-                                                            <Clock className="h-4 w-4" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm font-medium text-slate-900">
-                                                                {session.patientName}
-                                                            </p>
-                                                            <p className="text-xs text-slate-500">
-                                                                {formatSessionDateTime(session.startTime, session.endTime)}
-                                                            </p>
-                                                        </div>
+                            <div>
+                                <label
+                                    htmlFor="schedule-start"
+                                    className="block text-xs font-medium text-[#4A5D61] mb-1.5"
+                                >
+                                    Início
+                                </label>
+                                <input
+                                    id="schedule-start"
+                                    type="time"
+                                    required
+                                    value={startHour}
+                                    onChange={(e) => setStartHour(e.target.value)}
+                                    className="w-full px-3 py-2 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] tabular-nums focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63]"
+                                />
+                            </div>
+
+                            <div>
+                                <label
+                                    htmlFor="schedule-end"
+                                    className="block text-xs font-medium text-[#4A5D61] mb-1.5"
+                                >
+                                    Fim
+                                </label>
+                                <input
+                                    id="schedule-end"
+                                    type="time"
+                                    required
+                                    value={endHour}
+                                    onChange={(e) => setEndHour(e.target.value)}
+                                    className="w-full px-3 py-2 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] tabular-nums focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63]"
+                                />
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={scheduling || activeLinks.length === 0}
+                                className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#1E6B63] hover:bg-[#16544E] text-white text-sm font-semibold rounded-xl transition cursor-pointer disabled:opacity-60"
+                            >
+                                <Plus className="h-4 w-4" />
+                                {scheduling ? 'Agendando...' : 'Agendar'}
+                            </button>
+                        </form>
+                    </section>
+
+                    {/* Lista de Sessões */}
+                    <section className="bg-white rounded-2xl border border-[#E2E6E1] p-6 shadow-surface">
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                            <h2 className="font-display text-lg font-semibold text-[#132226] flex items-center gap-2">
+                                <Calendar className="h-5 w-5 text-[#1E6B63]" />
+                                Sessões Agendadas e Histórico
+                            </h2>
+                            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0F2ED] text-[#4A5D61] tabular-nums">
+                                {sessions.length}
+                            </span>
+                        </div>
+
+                        {sessions.length === 0 ? (
+                            <p className="text-sm text-[#4A5D61] text-center py-8">
+                                Nenhuma sessão agendada até o momento.
+                            </p>
+                        ) : (
+                            <div className="divide-y divide-[#E2E6E1]">
+                                {sessions.map((session) => {
+                                    const badge = getSessionStatusBadge(session.status);
+                                    const isUpdatingThis = updatingSessionId === session.id;
+                                    const isConfirmingEarly = confirmingEarlySessionId === session.id;
+
+                                    return (
+                                        <div key={session.id} className="py-4 space-y-3">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="p-2 rounded-xl bg-[#F0F2ED] text-[#4A5D61] mt-0.5">
+                                                        <Clock className="h-4 w-4" />
                                                     </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-[#132226]">
+                                                            {session.patientName}
+                                                        </p>
+                                                        <p className="text-xs text-[#4A5D61] mt-0.5 tabular-nums">
+                                                            {formatSessionDateTime(
+                                                                session.startTime,
+                                                                session.endTime
+                                                            )}
+                                                        </p>
+                                                    </div>
+                                                </div>
 
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <span
-                                                            className={`text-xs px-2.5 py-1 rounded-full font-medium border ${badge.color}`}
-                                                        >
-                                                            {badge.label}
-                                                        </span>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span
+                                                        className={`text-xs px-2.5 py-1 rounded-full font-medium border ${badge.color}`}
+                                                    >
+                                                        {badge.label}
+                                                    </span>
 
-                                                        {session.status === 'SCHEDULED' && !isConfirmingEarly && (
+                                                    {session.status === 'SCHEDULED' &&
+                                                        !isConfirmingEarly && (
                                                             <>
                                                                 <button
                                                                     type="button"
                                                                     disabled={isUpdatingThis}
-                                                                    onClick={() => requestSessionStatusChange(session, 'COMPLETED')}
+                                                                    onClick={() =>
+                                                                        requestSessionStatusChange(
+                                                                            session,
+                                                                            'COMPLETED'
+                                                                        )
+                                                                    }
                                                                     title="Marcar como realizada"
-                                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 cursor-pointer disabled:opacity-60"
+                                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#1B5E3F] bg-[#E8F4EE] hover:bg-[#D5ECDF] rounded-lg border border-[#C6E3D3] cursor-pointer disabled:opacity-60 transition"
                                                                 >
                                                                     <CheckCircle2 className="h-3.5 w-3.5" />
                                                                     Realizada
@@ -634,9 +446,14 @@ export function PsychologistDashboard() {
                                                                 <button
                                                                     type="button"
                                                                     disabled={isUpdatingThis}
-                                                                    onClick={() => requestSessionStatusChange(session, 'NO_SHOW')}
+                                                                    onClick={() =>
+                                                                        requestSessionStatusChange(
+                                                                            session,
+                                                                            'NO_SHOW'
+                                                                        )
+                                                                    }
                                                                     title="Registrar falta"
-                                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 cursor-pointer disabled:opacity-60"
+                                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#8C5311] bg-[#FDF5E6] hover:bg-[#FAE9C8] rounded-lg border border-[#F3DFB6] cursor-pointer disabled:opacity-60 transition"
                                                                 >
                                                                     <AlertCircle className="h-3.5 w-3.5" />
                                                                     Falta
@@ -644,54 +461,68 @@ export function PsychologistDashboard() {
                                                                 <button
                                                                     type="button"
                                                                     disabled={isUpdatingThis}
-                                                                    onClick={() => requestSessionStatusChange(session, 'CANCELED')}
+                                                                    onClick={() =>
+                                                                        requestSessionStatusChange(
+                                                                            session,
+                                                                            'CANCELED'
+                                                                        )
+                                                                    }
                                                                     title="Cancelar sessão"
-                                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 cursor-pointer disabled:opacity-60"
+                                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#526064] bg-[#F9FAF8] hover:bg-[#F0F2ED] rounded-lg border border-[#E2E6E1] cursor-pointer disabled:opacity-60 transition"
                                                                 >
                                                                     <XCircle className="h-3.5 w-3.5" />
                                                                     Cancelar
                                                                 </button>
                                                             </>
                                                         )}
+                                                </div>
+                                            </div>
+
+                                            {isConfirmingEarly && (
+                                                <div className="rounded-xl bg-[#FDF5E6] border border-[#F3DFB6] p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                    <p className="text-xs font-medium text-[#8C5311]">
+                                                        Esta sessão está agendada para mais tarde.
+                                                        Confirmar que o atendimento foi adiantado (foi
+                                                        atendido antes)?
+                                                    </p>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            disabled={isUpdatingThis}
+                                                            onClick={() =>
+                                                                handleUpdateSessionStatus(
+                                                                    session.id,
+                                                                    'COMPLETED',
+                                                                    true
+                                                                )
+                                                            }
+                                                            className="px-3 py-1.5 bg-[#1B5E3F] hover:bg-[#154A31] text-white text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-60 transition"
+                                                        >
+                                                            {isUpdatingThis
+                                                                ? 'Confirmando...'
+                                                                : 'Confirmar adiantamento'}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={isUpdatingThis}
+                                                            onClick={() =>
+                                                                setConfirmingEarlySessionId(null)
+                                                            }
+                                                            className="px-3 py-1.5 bg-white text-[#4A5D61] text-xs font-medium rounded-lg border border-[#E2E6E1] hover:bg-[#F9FAF8] cursor-pointer disabled:opacity-60 transition"
+                                                        >
+                                                            Voltar
+                                                        </button>
                                                     </div>
                                                 </div>
-
-                                                {isConfirmingEarly && (
-                                                    <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                                        <p className="text-xs font-medium text-amber-900">
-                                                            Esta sessão está agendada para mais tarde. Confirmar que o atendimento foi adiantado (foi atendido antes)?
-                                                        </p>
-                                                        <div className="flex items-center gap-2 shrink-0">
-                                                            <button
-                                                                type="button"
-                                                                disabled={isUpdatingThis}
-                                                                onClick={() =>
-                                                                    handleUpdateSessionStatus(session.id, 'COMPLETED', true)
-                                                                }
-                                                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg cursor-pointer disabled:opacity-60"
-                                                            >
-                                                                {isUpdatingThis ? 'Confirmando...' : 'Confirmar adiantamento'}
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                disabled={isUpdatingThis}
-                                                                onClick={() => setConfirmingEarlySessionId(null)}
-                                                                className="px-3 py-1.5 bg-white text-slate-700 text-xs font-medium rounded-lg border border-slate-200 cursor-pointer disabled:opacity-60"
-                                                            >
-                                                                Voltar
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </section>
-                    </>
-                )}
-            </main>
-        </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </section>
+                </div>
+            )}
+        </DashboardShell>
     );
 }
