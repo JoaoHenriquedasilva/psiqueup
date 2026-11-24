@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Lock, Mail, User } from 'lucide-react';
+import { HeartHandshake, Lock, Mail, Stethoscope, User } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
 import { useAuth } from '../contexts/useAuth';
 import { extractApiErrorMessage } from '../utils/apiError';
@@ -48,49 +48,68 @@ export function RegisterPage() {
     return (
         <AuthLayout
             title="Criar conta no PsiqueUp"
-            subtitle="Escolha seu perfil de acesso"
+            subtitle="Escolha seu perfil de acesso para começar"
             error={error}
             footer={
                 <>
                     Já possui conta?{' '}
-                    <Link to="/login" className="font-medium text-teal-600 hover:text-teal-700">
+                    <Link
+                        to="/login"
+                        className="font-semibold text-[#1E6B63] hover:text-[#16544E] transition"
+                    >
                         Fazer login
                     </Link>
                 </>
             }
         >
             <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-lg">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <button
                         type="button"
                         onClick={() => setRole('PATIENT')}
-                        className={`py-2 text-sm font-medium rounded-md transition cursor-pointer ${
+                        className={`text-left p-3 rounded-xl border transition cursor-pointer ${
                             role === 'PATIENT'
-                                ? 'bg-white text-teal-700 shadow-sm'
-                                : 'text-slate-600 hover:text-slate-900'
+                                ? 'bg-[#E8F3F1] border-[#1E6B63] text-[#164E48]'
+                                : 'bg-[#F9FAF8] border-[#E2E6E1] text-[#4A5D61] hover:border-[#C9D2CE]'
                         }`}
                     >
-                        Sou Paciente
+                        <div className="flex items-center gap-2 font-semibold text-sm">
+                            <HeartHandshake className="h-4 w-4 shrink-0" />
+                            <span>Sou Paciente</span>
+                        </div>
+                        <p className="text-[11px] mt-1 leading-snug opacity-85">
+                            Acompanho minhas sessões e abordagem clínica
+                        </p>
                     </button>
+
                     <button
                         type="button"
                         onClick={() => setRole('PSYCHOLOGIST')}
-                        className={`py-2 text-sm font-medium rounded-md transition cursor-pointer ${
+                        className={`text-left p-3 rounded-xl border transition cursor-pointer ${
                             role === 'PSYCHOLOGIST'
-                                ? 'bg-white text-teal-700 shadow-sm'
-                                : 'text-slate-600 hover:text-slate-900'
+                                ? 'bg-[#E8F3F1] border-[#1E6B63] text-[#164E48]'
+                                : 'bg-[#F9FAF8] border-[#E2E6E1] text-[#4A5D61] hover:border-[#C9D2CE]'
                         }`}
                     >
-                        Sou Psicólogo(a)
+                        <div className="flex items-center gap-2 font-semibold text-sm">
+                            <Stethoscope className="h-4 w-4 shrink-0" />
+                            <span>Sou Psicólogo(a)</span>
+                        </div>
+                        <p className="text-[11px] mt-1 leading-snug opacity-85">
+                            Gerencio agenda, pacientes e perfil CRP
+                        </p>
                     </button>
                 </div>
 
                 <div>
-                    <label htmlFor="register-name" className="block text-sm font-medium text-slate-700 mb-1">
+                    <label
+                        htmlFor="register-name"
+                        className="block text-sm font-medium text-[#132226] mb-1.5"
+                    >
                         Nome completo
                     </label>
                     <div className="relative">
-                        <User className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
+                        <User className="h-4 w-4 text-[#4A5D61] absolute left-3.5 top-3" />
                         <input
                             id="register-name"
                             type="text"
@@ -100,17 +119,20 @@ export function RegisterPage() {
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="Ex.: Dra. Ana Silva"
-                            className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            className="w-full pl-10 pr-3 py-2.5 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] placeholder:text-[#4A5D61]/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63] transition"
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label htmlFor="register-email" className="block text-sm font-medium text-slate-700 mb-1">
+                    <label
+                        htmlFor="register-email"
+                        className="block text-sm font-medium text-[#132226] mb-1.5"
+                    >
                         E-mail
                     </label>
                     <div className="relative">
-                        <Mail className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
+                        <Mail className="h-4 w-4 text-[#4A5D61] absolute left-3.5 top-3" />
                         <input
                             id="register-email"
                             type="email"
@@ -119,17 +141,20 @@ export function RegisterPage() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="seu@email.com"
-                            className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            className="w-full pl-10 pr-3 py-2.5 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] placeholder:text-[#4A5D61]/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63] transition"
                         />
                     </div>
                 </div>
 
                 <div>
-                    <label htmlFor="register-password" className="block text-sm font-medium text-slate-700 mb-1">
+                    <label
+                        htmlFor="register-password"
+                        className="block text-sm font-medium text-[#132226] mb-1.5"
+                    >
                         Senha
                     </label>
                     <div className="relative">
-                        <Lock className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
+                        <Lock className="h-4 w-4 text-[#4A5D61] absolute left-3.5 top-3" />
                         <input
                             id="register-password"
                             type="password"
@@ -139,7 +164,7 @@ export function RegisterPage() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="Mínimo 6 caracteres"
-                            className="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            className="w-full pl-10 pr-3 py-2.5 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] placeholder:text-[#4A5D61]/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63] transition"
                         />
                     </div>
                 </div>
@@ -147,7 +172,7 @@ export function RegisterPage() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-2.5 px-4 bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white font-medium rounded-lg text-sm transition cursor-pointer"
+                    className="w-full py-2.5 px-4 bg-[#1E6B63] hover:bg-[#16544E] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition cursor-pointer"
                 >
                     {loading ? 'Criando conta...' : 'Criar conta'}
                 </button>
