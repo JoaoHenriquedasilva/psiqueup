@@ -4,6 +4,7 @@ import {
     AlertCircle,
     ArrowRight,
     BadgeAlert,
+    Building2,
     Calendar,
     CheckCircle2,
     Clock,
@@ -14,6 +15,7 @@ import { DashboardShell } from '../components/DashboardShell';
 import { type FeedbackMessage } from '../components/FeedbackBanner';
 import { api } from '../services/api';
 import { extractApiErrorMessage, isApiHttpStatus } from '../utils/apiError';
+import { getClinicLinkBadge, resolvePrimaryClinicLink } from '../utils/clinicLink';
 import {
     formatSessionDateTime,
     getTodayDateInputValue,
@@ -22,6 +24,7 @@ import {
 import { PSYCHOLOGIST_NAV_ITEMS } from '../utils/navigation';
 import { getSessionStatusBadge } from '../utils/sessionStatus';
 import type {
+    ClinicLinkItem,
     PsychologistProfile,
     SessionItem,
     SessionStatus,
@@ -30,6 +33,8 @@ import type {
 
 export function PsychologistDashboard() {
     const [profileMissing, setProfileMissing] = useState(false);
+    const [clinicLinks, setClinicLinks] = useState<ClinicLinkItem[]>([]);
+    const [clinicLinksError, setClinicLinksError] = useState(false);
     const [links, setLinks] = useState<TherapeuticLink[]>([]);
     const [sessions, setSessions] = useState<SessionItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -51,14 +56,28 @@ export function PsychologistDashboard() {
 
         async function loadAgendaData() {
             try {
-                const [linksRes, sessionsRes] = await Promise.all([
+                const [linksRes, sessionsRes, clinicLinksRes] = await Promise.allSettled([
                     api.get<TherapeuticLink[]>('/links'),
                     api.get<SessionItem[]>('/sessions'),
+                    api.get<ClinicLinkItem[]>('/clinics/my-links'),
                 ]);
 
                 if (cancelled) return;
-                setLinks(linksRes.data);
-                setSessions(sessionsRes.data);
+
+                if (clinicLinksRes.status === 'fulfilled') {
+                    setClinicLinks(clinicLinksRes.value.data);
+                    setClinicLinksError(false);
+                } else {
+                    setClinicLinksError(true);
+                }
+
+                if (linksRes.status === 'rejected' || sessionsRes.status === 'rejected') {
+                    setFeedback({ type: 'error', text: 'Erro ao carregar dados da agenda.' });
+                    return;
+                }
+
+                setLinks(linksRes.value.data);
+                setSessions(sessionsRes.value.data);
 
                 try {
                     await api.get<PsychologistProfile>('/profiles/psychologist/me');
@@ -78,10 +97,6 @@ export function PsychologistDashboard() {
                             ),
                         });
                     }
-                }
-            } catch {
-                if (!cancelled) {
-                    setFeedback({ type: 'error', text: 'Erro ao carregar dados da agenda.' });
                 }
             } finally {
                 if (!cancelled) {
@@ -216,6 +231,8 @@ export function PsychologistDashboard() {
     }
 
     const activeLinks = links.filter((l) => l.status === 'ACTIVE');
+    const primaryClinicLink = resolvePrimaryClinicLink(clinicLinks);
+    const clinicBadge = getClinicLinkBadge(primaryClinicLink?.status ?? null);
 
     return (
         <DashboardShell
@@ -233,6 +250,63 @@ export function PsychologistDashboard() {
                 </div>
             ) : (
                 <div className="space-y-6">
+                    {/* Faixa de resumo: Modo de Atuação (Autônomo vs. Consultório) */}
+                    {clinicLinksError ? (
+                        <section className="rounded-2xl bg-surface border border-danger-border px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-surface">
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <div className="h-9 w-9 rounded-xl bg-danger-bg text-danger-ink flex items-center justify-center shrink-0">
+                                    <AlertCircle className="h-4 w-4" />
+                                </div>
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full border bg-danger-bg text-danger-ink border-danger-border">
+                                        Status indisponível
+                                    </span>
+                                    <span className="text-xs text-danger-ink">
+                                        Não foi possível verificar seu vínculo com consultório. Tente novamente em instantes.
+                                    </span>
+                                </div>
+                            </div>
+                            <Link
+                                to="/psychologist/profile"
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-primary-ink hover:underline self-start sm:self-center shrink-0"
+                            >
+                                Gerenciar vínculo
+                                <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                        </section>
+                    ) : (
+                        <section className="rounded-2xl bg-surface border border-border-subtle px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-surface">
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <div className="h-9 w-9 rounded-xl bg-slate-inst-tint text-slate-inst flex items-center justify-center shrink-0">
+                                    <Building2 className="h-4 w-4" />
+                                </div>
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                    <span
+                                        className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${clinicBadge.className}`}
+                                    >
+                                        {clinicBadge.label}
+                                    </span>
+                                    {primaryClinicLink ? (
+                                        <span className="text-sm font-medium text-ink">
+                                            {primaryClinicLink.clinicName}
+                                        </span>
+                                    ) : (
+                                        <span className="text-xs text-ink-secondary">
+                                            Sem vínculo ativo com consultório
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            <Link
+                                to="/psychologist/profile"
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-primary-ink hover:underline self-start sm:self-center shrink-0"
+                            >
+                                Gerenciar vínculo
+                                <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                        </section>
+                    )}
+
                     {/* Banner de Onboarding quando perfil profissional não existe (404) */}
                     {profileMissing && (
                         <div className="rounded-2xl bg-warning-bg border border-warning-border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-surface">

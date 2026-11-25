@@ -1,11 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { BookOpen, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, BookOpen, Building2, CheckCircle2, Clock } from 'lucide-react';
 import { DashboardShell } from '../components/DashboardShell';
 import { type FeedbackMessage } from '../components/FeedbackBanner';
 import { api } from '../services/api';
+import { useCnpjField } from '../hooks/useCnpjField';
 import { extractApiErrorMessage, isApiHttpStatus } from '../utils/apiError';
+import { getClinicLinkBadge, resolvePrimaryClinicLink } from '../utils/clinicLink';
+import { formatCnpj } from '../utils/cnpj';
 import { PSYCHOLOGIST_NAV_ITEMS } from '../utils/navigation';
-import type { PsychologistProfile, TherapeuticApproach } from '../types/api';
+import type { ClinicLinkItem, PsychologistProfile, TherapeuticApproach } from '../types/api';
 
 const BRAZILIAN_CRP_REGEX = /^(0[1-9]|1[0-9]|2[0-4])\/\d{4,6}$/;
 
@@ -20,14 +23,41 @@ export function PsychologistProfilePage() {
     const [bio, setBio] = useState('');
     const [savingProfile, setSavingProfile] = useState(false);
 
+    // Vínculo com consultório
+    const [clinicLinks, setClinicLinks] = useState<ClinicLinkItem[]>([]);
+    const [clinicLinksError, setClinicLinksError] = useState(false);
+    const clinicCnpjField = useCnpjField();
+    const [joiningClinic, setJoiningClinic] = useState(false);
+
     useEffect(() => {
         let cancelled = false;
 
         async function loadProfileData() {
             try {
-                const approachesRes = await api.get<TherapeuticApproach[]>('/approaches');
+                const [approachesRes, clinicLinksRes] = await Promise.allSettled([
+                    api.get<TherapeuticApproach[]>('/approaches'),
+                    api.get<ClinicLinkItem[]>('/clinics/my-links'),
+                ]);
                 if (cancelled) return;
-                setApproaches(approachesRes.data);
+
+                if (approachesRes.status === 'fulfilled') {
+                    setApproaches(approachesRes.value.data);
+                } else {
+                    setFeedback({
+                        type: 'error',
+                        text: extractApiErrorMessage(
+                            approachesRes.reason,
+                            'Erro ao carregar abordagens terapêuticas.'
+                        ),
+                    });
+                }
+
+                if (clinicLinksRes.status === 'fulfilled') {
+                    setClinicLinks(clinicLinksRes.value.data);
+                    setClinicLinksError(false);
+                } else {
+                    setClinicLinksError(true);
+                }
 
                 try {
                     const profileRes = await api.get<PsychologistProfile>(
@@ -49,16 +79,6 @@ export function PsychologistProfilePage() {
                             ),
                         });
                     }
-                }
-            } catch (err: unknown) {
-                if (!cancelled) {
-                    setFeedback({
-                        type: 'error',
-                        text: extractApiErrorMessage(
-                            err,
-                            'Erro ao carregar abordagens terapêuticas.'
-                        ),
-                    });
                 }
             } finally {
                 if (!cancelled) {
@@ -113,7 +133,46 @@ export function PsychologistProfilePage() {
         }
     }
 
+    async function handleJoinClinic(e: FormEvent) {
+        e.preventDefault();
+        setFeedback(null);
+
+        if (!profile) {
+            setFeedback({
+                type: 'error',
+                text: 'Salve seu perfil profissional (CRP e abordagem) antes de solicitar vínculo com um consultório.',
+            });
+            return;
+        }
+
+        if (!clinicCnpjField.validate()) {
+            return;
+        }
+
+        setJoiningClinic(true);
+        try {
+            const { data } = await api.post<ClinicLinkItem>('/clinics/join', {
+                cnpj: clinicCnpjField.strippedValue,
+            });
+            setClinicLinks((prev) => [data, ...prev.filter((l) => l.id !== data.id)]);
+            clinicCnpjField.reset();
+            setFeedback({
+                type: 'success',
+                text: `Solicitação de vínculo enviada para ${data.clinicName}.`,
+            });
+        } catch (err: unknown) {
+            setFeedback({
+                type: 'error',
+                text: extractApiErrorMessage(err, 'Não foi possível solicitar vínculo com o consultório.'),
+            });
+        } finally {
+            setJoiningClinic(false);
+        }
+    }
+
     const selectedApproach = approaches.find((a) => a.id === approachId) ?? null;
+    const primaryClinicLink = resolvePrimaryClinicLink(clinicLinks);
+    const clinicBadge = getClinicLinkBadge(primaryClinicLink?.status ?? null);
 
     return (
         <DashboardShell
@@ -263,6 +322,149 @@ export function PsychologistProfilePage() {
                             </div>
                         )}
                     </aside>
+
+                    {/* Vínculo com Consultório */}
+                    <section className="lg:col-span-12 bg-surface rounded-2xl border border-border-subtle p-6 shadow-surface space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5">
+                                <div className="h-9 w-9 rounded-xl bg-slate-inst-tint text-slate-inst flex items-center justify-center shrink-0">
+                                    <Building2 className="h-4 w-4" />
+                                </div>
+                                <div>
+                                    <h2 className="font-display text-lg font-semibold text-ink">
+                                        Vínculo com Consultório
+                                    </h2>
+                                    <p className="text-xs text-ink-secondary">
+                                        Atue de forma autônoma ou solicite vínculo com um consultório cadastrado por CNPJ.
+                                    </p>
+                                </div>
+                            </div>
+                            <span
+                                className={`inline-flex items-center text-xs font-semibold px-3 py-1 rounded-full border self-start sm:self-center ${
+                                    clinicLinksError
+                                        ? 'bg-danger-bg text-danger-ink border-danger-border'
+                                        : clinicBadge.className
+                                }`}
+                            >
+                                {clinicLinksError ? 'Indisponível' : clinicBadge.label}
+                            </span>
+                        </div>
+
+                        {clinicLinksError ? (
+                            <div className="rounded-xl bg-danger-bg border border-danger-border p-4 flex items-start gap-3">
+                                <AlertCircle className="h-5 w-5 text-danger-ink shrink-0 mt-0.5" />
+                                <div className="space-y-0.5 text-sm text-danger-ink">
+                                    <p className="font-semibold">
+                                        Não foi possível carregar seu vínculo com consultório.
+                                    </p>
+                                    <p className="text-xs opacity-90">
+                                        Ocorreu uma falha ao consultar suas solicitações. Recarregue
+                                        a página para tentar novamente.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : primaryClinicLink?.status === 'PENDING' ? (
+                            <div className="rounded-xl bg-warning-bg border border-warning-border p-4 flex items-start gap-3">
+                                <Clock className="h-5 w-5 text-warning-ink shrink-0 mt-0.5" />
+                                <div className="space-y-1 text-sm text-warning-ink">
+                                    <p className="font-semibold">
+                                        Solicitação aguardando aprovação de {primaryClinicLink.clinicName}
+                                    </p>
+                                    <p className="text-xs opacity-90 tabular-nums">
+                                        CNPJ: {formatCnpj(primaryClinicLink.clinicCnpj)} • Enviada em{' '}
+                                        {new Date(primaryClinicLink.createdAt).toLocaleDateString('pt-BR')}
+                                    </p>
+                                    <p className="text-xs opacity-90">
+                                        Enquanto aguarda a análise do administrador, você continua atendendo normalmente como profissional autônomo.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : primaryClinicLink?.status === 'APPROVED' ? (
+                            <div className="rounded-xl bg-success-bg border border-success-border p-4 flex items-start gap-3">
+                                <CheckCircle2 className="h-5 w-5 text-success-ink shrink-0 mt-0.5" />
+                                <div className="space-y-1 text-sm text-success-ink">
+                                    <p className="font-semibold">
+                                        Vinculado ao consultório {primaryClinicLink.clinicName}
+                                    </p>
+                                    <p className="text-xs opacity-90 tabular-nums">
+                                        CNPJ: {formatCnpj(primaryClinicLink.clinicCnpj)}
+                                    </p>
+                                    <p className="text-xs opacity-90">
+                                        O consultório pode indicar novos pacientes diretamente para você através da triagem administrativa.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {primaryClinicLink?.status === 'REJECTED' && (
+                                    <div className="rounded-xl bg-danger-bg border border-danger-border p-4 flex items-start gap-3">
+                                        <AlertCircle className="h-5 w-5 text-danger-ink shrink-0 mt-0.5" />
+                                        <div className="text-xs text-danger-ink space-y-0.5">
+                                            <p className="font-semibold">
+                                                Sua solicitação anterior para {primaryClinicLink.clinicName} foi recusada.
+                                            </p>
+                                            <p className="opacity-90">
+                                                Você continua atuando normalmente como autônomo e pode solicitar vínculo com outro consultório informando o CNPJ abaixo.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {!primaryClinicLink && (
+                                    <p className="text-xs text-ink-secondary">
+                                        Atualmente você atua de forma exclusivamente autônoma. Se desejar integrar a equipe de um consultório cadastrado no PsiqueUp, informe o CNPJ da clínica para enviar uma solicitação de vínculo.
+                                    </p>
+                                )}
+
+                                {!profile && (
+                                    <div className="rounded-xl bg-warning-bg border border-warning-border px-4 py-3 text-xs text-warning-ink">
+                                        Salve seu registro <strong>CRP</strong> e abordagem terapêutica acima antes de solicitar vínculo com um consultório.
+                                    </div>
+                                )}
+
+                                <form
+                                    onSubmit={handleJoinClinic}
+                                    className="flex flex-col sm:flex-row sm:items-start gap-3"
+                                >
+                                    <div className="flex-1 max-w-xs">
+                                        <label
+                                            htmlFor="clinic-join-cnpj"
+                                            className="block text-xs font-medium text-ink-secondary mb-1.5"
+                                        >
+                                            CNPJ do Consultório
+                                        </label>
+                                        <input
+                                            id="clinic-join-cnpj"
+                                            type="text"
+                                            inputMode="numeric"
+                                            maxLength={18}
+                                            value={clinicCnpjField.value}
+                                            onChange={(e) => clinicCnpjField.handleChange(e.target.value)}
+                                            onBlur={clinicCnpjField.handleBlur}
+                                            placeholder="00.000.000/0000-00"
+                                            className={`w-full px-3.5 py-2.5 bg-subsurface border rounded-xl text-sm text-ink tabular-nums focus:bg-surface focus:outline-none focus:ring-2 transition ${
+                                                clinicCnpjField.error
+                                                    ? 'border-danger-ink focus:ring-danger-ink/20 focus:border-danger-ink'
+                                                    : 'border-border-subtle focus:ring-primary-ink/20 focus:border-primary-ink'
+                                            }`}
+                                        />
+                                        {clinicCnpjField.error && (
+                                            <p className="text-xs text-danger-ink mt-1">
+                                                {clinicCnpjField.error}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={joiningClinic || !profile}
+                                        className="sm:mt-6 px-5 py-2.5 bg-primary hover:bg-primary-hover disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition cursor-pointer shrink-0"
+                                    >
+                                        {joiningClinic ? 'Enviando...' : 'Solicitar vínculo'}
+                                    </button>
+                                </form>
+                            </div>
+                        )}
+                    </section>
                 </div>
             )}
         </DashboardShell>

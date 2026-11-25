@@ -21,6 +21,6 @@ export const PSYCHOLOGIST_NAV_ITEMS: DashboardNavItem[] = [
 
 export const ADMIN_NAV_ITEMS: DashboardNavItem[] = [
     { to: '/admin', label: 'Visão Geral', icon: LayoutDashboard, end: true },
-    { to: '/admin/psychologists', label: 'Psicólogos & CRP', icon: Users },
+    { to: '/admin/psychologists', label: 'Psicólogos & Triagem', icon: Users },
     { to: '/admin/sessions', label: 'Auditoria de Sessões', icon: ClipboardCheck },
 ];
