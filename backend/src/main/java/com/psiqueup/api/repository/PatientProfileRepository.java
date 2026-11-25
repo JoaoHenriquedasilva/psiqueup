@@ -7,4 +7,6 @@ import java.util.Optional;
 
 public interface PatientProfileRepository extends JpaRepository<PatientProfile, Long> {
     Optional<PatientProfile> findByUserEmail(String email);
+    Optional<PatientProfile> findByCpfHash(String cpfHash);
+    boolean existsByCpfHash(String cpfHash);
 }

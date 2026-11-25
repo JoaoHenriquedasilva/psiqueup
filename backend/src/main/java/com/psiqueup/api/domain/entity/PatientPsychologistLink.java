@@ -36,7 +36,7 @@ public class PatientPsychologistLink {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
-    private LinkStatus status = LinkStatus.ACTIVE;
+    private LinkStatus status = LinkStatus.PENDING;
 
     @Column(name = "rejection_reason", length = 255)
     private String rejectionReason;
