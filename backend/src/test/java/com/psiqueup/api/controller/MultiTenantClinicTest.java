@@ -7,12 +7,14 @@ import com.psiqueup.api.domain.entity.PatientPsychologistLink;
 import com.psiqueup.api.domain.entity.Session;
 import com.psiqueup.api.domain.entity.User;
 import com.psiqueup.api.domain.enums.ClinicPsychologistStatus;
+import com.psiqueup.api.domain.enums.LinkStatus;
 import com.psiqueup.api.domain.enums.PublicUserRole;
 import com.psiqueup.api.domain.enums.SessionStatus;
 import com.psiqueup.api.domain.enums.UserRole;
 import com.psiqueup.api.dto.auth.RegisterRequest;
 import com.psiqueup.api.dto.link.CreateLinkRequest;
 import com.psiqueup.api.dto.link.LinkResponse;
+import com.psiqueup.api.dto.link.NeutralActionResponse;
 import com.psiqueup.api.dto.profile.UpsertPsychologistProfileRequest;
 import com.psiqueup.api.dto.session.CreateSessionRequest;
 import com.psiqueup.api.dto.session.SessionResponse;
@@ -136,6 +138,24 @@ class MultiTenantClinicTest {
         return sb.toString();
     }
 
+    private static final java.util.concurrent.atomic.AtomicInteger CPF_SEQ = new java.util.concurrent.atomic.AtomicInteger(300000001);
+
+    private String uniqueCpf() {
+        String base = String.format("%09d", CPF_SEQ.getAndIncrement());
+        int d1 = calcCpfDigit(base, 10);
+        int d2 = calcCpfDigit(base + d1, 11);
+        return base + d1 + d2;
+    }
+
+    private int calcCpfDigit(String digits, int initialWeight) {
+        int sum = 0;
+        for (int i = 0; i < digits.length(); i++) {
+            sum += Character.getNumericValue(digits.charAt(i)) * (initialWeight - i);
+        }
+        int rem = sum % 11;
+        return rem < 2 ? 0 : 11 - rem;
+    }
+
     private String formatCnpj(String digits) {
         return digits.substring(0, 2) + "." + digits.substring(2, 5) + "." +
                 digits.substring(5, 8) + "/" + digits.substring(8, 12) + "-" + digits.substring(12, 14);
@@ -242,7 +262,7 @@ class MultiTenantClinicTest {
         String tokenAdminA = registerClinicAndGetToken("Clínica A " + suffix, cnpjA, "adminA." + suffix + "@psiqueup.test");
 
         String psychEmail = "psy.join." + suffix + "@psiqueup.test";
-        var psychAuth = authService.register(new RegisterRequest("Dra. Ana", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
+        var psychAuth = authService.register(new RegisterRequest("Dra. Ana", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
         profileDomainService.upsertPsychologistProfile(psychEmail, new UpsertPsychologistProfileRequest(uniqueCrp(), 1L, "TCC"));
 
         // Psicólogo autônomo inicialmente sem vínculos
@@ -316,19 +336,19 @@ class MultiTenantClinicTest {
 
         // Psicólogo A (aprovado na Clínica A)
         String psyAEmail = "psya." + suffix + "@psiqueup.test";
-        var psyAAuth = authService.register(new RegisterRequest("Dr. Alpha", psyAEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
+        var psyAAuth = authService.register(new RegisterRequest("Dr. Alpha", psyAEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
         String crpA = uniqueCrp();
         profileDomainService.upsertPsychologistProfile(psyAEmail, new UpsertPsychologistProfileRequest(crpA, 1L, "TCC"));
 
         // Psicólogo B (aprovado na Clínica B)
         String psyBEmail = "psyb." + suffix + "@psiqueup.test";
-        var psyBAuth = authService.register(new RegisterRequest("Dra. Beta", psyBEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
+        var psyBAuth = authService.register(new RegisterRequest("Dra. Beta", psyBEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
         String crpB = uniqueCrp();
         profileDomainService.upsertPsychologistProfile(psyBEmail, new UpsertPsychologistProfileRequest(crpB, 1L, "Psicanálise"));
 
         // Psicólogo Autônomo (sem vínculo com clínica)
         String psyAutoEmail = "psyauto." + suffix + "@psiqueup.test";
-        authService.register(new RegisterRequest("Dr. Autônomo", psyAutoEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
+        authService.register(new RegisterRequest("Dr. Autônomo", psyAutoEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
         String crpAuto = uniqueCrp();
         profileDomainService.upsertPsychologistProfile(psyAutoEmail, new UpsertPsychologistProfileRequest(crpAuto, 1L, "Humanista"));
 
@@ -366,11 +386,15 @@ class MultiTenantClinicTest {
         // Pacientes e sessões em Clínica B e Autônomo
         String patBEmail = "patb." + suffix + "@psiqueup.test";
         String patAutoEmail = "patauto." + suffix + "@psiqueup.test";
-        authService.register(new RegisterRequest("Paciente Beta", patBEmail, "secret123", PublicUserRole.PATIENT));
-        authService.register(new RegisterRequest("Paciente Auto", patAutoEmail, "secret123", PublicUserRole.PATIENT));
+        String patBCpf = uniqueCpf();
+        String patAutoCpf = uniqueCpf();
+        authService.register(new RegisterRequest("Paciente Beta", patBEmail, "secret123", PublicUserRole.PATIENT, patBCpf));
+        authService.register(new RegisterRequest("Paciente Auto", patAutoEmail, "secret123", PublicUserRole.PATIENT, patAutoCpf));
 
-        LinkResponse linkB = linkService.createLink(psyBEmail, new CreateLinkRequest(patBEmail));
-        LinkResponse linkAuto = linkService.createLink(psyAutoEmail, new CreateLinkRequest(patAutoEmail));
+        linkService.createLink(psyBEmail, new CreateLinkRequest(patBCpf));
+        LinkResponse linkB = linkService.acceptLink(patBEmail, linkService.listMyLinks(patBEmail).getFirst().id());
+        linkService.createLink(psyAutoEmail, new CreateLinkRequest(patAutoCpf));
+        LinkResponse linkAuto = linkService.acceptLink(patAutoEmail, linkService.listMyLinks(patAutoEmail).getFirst().id());
 
         OffsetDateTime start = OffsetDateTime.now().plusHours(5);
         SessionResponse sessionB = sessionService.scheduleSession(
@@ -456,17 +480,18 @@ class MultiTenantClinicTest {
         String tokenAdminA = registerClinicAndGetToken("Clínica Triagem " + suffix, cnpjA, "admin.triage." + suffix + "@psiqueup.test");
 
         String psyAEmail = "psy.triage." + suffix + "@psiqueup.test";
-        var psyAAuth = authService.register(new RegisterRequest("Dra. Triagem", psyAEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
+        var psyAAuth = authService.register(new RegisterRequest("Dra. Triagem", psyAEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
         profileDomainService.upsertPsychologistProfile(psyAEmail, new UpsertPsychologistProfileRequest(uniqueCrp(), 1L, "TCC"));
         Long psyAId = userRepository.findByEmail(psyAEmail).orElseThrow().getId();
 
         String psyAutoEmail = "psy.auto.triage." + suffix + "@psiqueup.test";
-        authService.register(new RegisterRequest("Dr. Sem Clinica", psyAutoEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
+        authService.register(new RegisterRequest("Dr. Sem Clinica", psyAutoEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
         profileDomainService.upsertPsychologistProfile(psyAutoEmail, new UpsertPsychologistProfileRequest(uniqueCrp(), 1L, "TCC"));
         Long psyAutoId = userRepository.findByEmail(psyAutoEmail).orElseThrow().getId();
 
         String patEmail = "pat.triage." + suffix + "@psiqueup.test";
-        authService.register(new RegisterRequest("Paciente Triagem", patEmail, "secret123", PublicUserRole.PATIENT));
+        String patCpf = uniqueCpf();
+        authService.register(new RegisterRequest("Paciente Triagem", patEmail, "secret123", PublicUserRole.PATIENT, patCpf));
 
         // Solicitar e aprovar Psy A na Clínica A
         MvcResult joinA = mockMvc().perform(post("/api/clinics/join")
@@ -488,42 +513,45 @@ class MultiTenantClinicTest {
                         .content("""
                                 {
                                   "psychologistId": %d,
-                                  "patientEmail": "%s"
+                                  "cpf": "%s"
                                 }
-                                """.formatted(psyAutoId, patEmail)))
+                                """.formatted(psyAutoId, patCpf)))
                 .andExpect(status().isForbidden());
 
-        // Admin A realiza triagem para psicólogo aprovado da clínica -> 201 Created
-        MvcResult triageResult = mockMvc().perform(post("/api/admin/triage")
-                        .header("Authorization", "Bearer " + tokenAdminA)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "psychologistId": %d,
-                                  "patientEmail": "%s"
-                                }
-                                """.formatted(psyAId, patEmail)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("ACTIVE"))
-                .andExpect(jsonPath("$.psychologistId").value(psyAId))
-                .andReturn();
-
-        Long linkId = ((Number) JsonPath.read(triageResult.getResponse().getContentAsString(), "$.id")).longValue();
-
-        // Paciente rejeita o vínculo
-        linkService.rejectLink(patEmail, linkId, null);
-
-        // Nova triagem para o mesmo par após REJECTED deve ser bloqueada -> 400 Bad Request
+        // Admin A realiza triagem para psicólogo aprovado da clínica -> 202 Accepted (resposta neutra)
         mockMvc().perform(post("/api/admin/triage")
                         .header("Authorization", "Bearer " + tokenAdminA)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "psychologistId": %d,
-                                  "patientEmail": "%s"
+                                  "cpf": "%s"
                                 }
-                                """.formatted(psyAId, patEmail)))
-                .andExpect(status().isBadRequest());
+                                """.formatted(psyAId, patCpf)))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.message").value(NeutralActionResponse.LINK_REQUEST_ACCEPTED_MESSAGE));
+
+        LinkResponse createdPending = linkService.listMyLinks(patEmail).getFirst();
+        assertThat(createdPending.status()).isEqualTo(LinkStatus.PENDING);
+        assertThat(createdPending.psychologistId()).isEqualTo(psyAId);
+
+        // Paciente rejeita o vínculo pendente
+        linkService.rejectLink(patEmail, createdPending.id(), null);
+
+        // Nova triagem para o mesmo par após REJECTED retorna 202 neutro, mas NÃO reabre o vínculo (anti-enumeração + trava)
+        mockMvc().perform(post("/api/admin/triage")
+                        .header("Authorization", "Bearer " + tokenAdminA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "psychologistId": %d,
+                                  "cpf": "%s"
+                                }
+                                """.formatted(psyAId, patCpf)))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.message").value(NeutralActionResponse.LINK_REQUEST_ACCEPTED_MESSAGE));
+
+        assertThat(linkRepository.findById(createdPending.id()).orElseThrow().getStatus()).isEqualTo(LinkStatus.REJECTED);
     }
 
     @Test
@@ -535,7 +563,7 @@ class MultiTenantClinicTest {
         String tokenAdminB = registerClinicAndGetToken("Clínica Lock B " + suffix, cnpjB, "admin.lock.b." + suffix + "@psiqueup.test");
 
         String psyEmail = "psy.lock." + suffix + "@psiqueup.test";
-        var psyAuth = authService.register(new RegisterRequest("Dr. Lock", psyEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
+        var psyAuth = authService.register(new RegisterRequest("Dr. Lock", psyEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
         profileDomainService.upsertPsychologistProfile(psyEmail, new UpsertPsychologistProfileRequest(uniqueCrp(), 1L, "TCC"));
 
         // Solicita vínculo à Clínica B -> PENDING, depois Admin B rejeita
@@ -593,23 +621,26 @@ class MultiTenantClinicTest {
         String tokenAdminA = registerClinicAndGetToken("Clínica Scope A " + suffix, cnpjA, "admin.scope." + suffix + "@psiqueup.test");
 
         String psyAEmail = "psy.scope." + suffix + "@psiqueup.test";
-        var psyAAuth = authService.register(new RegisterRequest("Dra. Scope", psyAEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
+        var psyAAuth = authService.register(new RegisterRequest("Dra. Scope", psyAEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
         profileDomainService.upsertPsychologistProfile(psyAEmail, new UpsertPsychologistProfileRequest(uniqueCrp(), 1L, "TCC"));
         Long psyAId = userRepository.findByEmail(psyAEmail).orElseThrow().getId();
 
         String psyAutoEmail = "psy.auto.scope." + suffix + "@psiqueup.test";
-        authService.register(new RegisterRequest("Dr. Auto Scope", psyAutoEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
+        authService.register(new RegisterRequest("Dr. Auto Scope", psyAutoEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
         profileDomainService.upsertPsychologistProfile(psyAutoEmail, new UpsertPsychologistProfileRequest(uniqueCrp(), 1L, "TCC"));
 
         String patSharedEmail = "pat.shared." + suffix + "@psiqueup.test";
         String patOnlyAEmail = "pat.onlya." + suffix + "@psiqueup.test";
-        authService.register(new RegisterRequest("Paciente Compartilhado", patSharedEmail, "secret123", PublicUserRole.PATIENT));
-        authService.register(new RegisterRequest("Paciente Exclusivo A", patOnlyAEmail, "secret123", PublicUserRole.PATIENT));
+        String patSharedCpf = uniqueCpf();
+        String patOnlyACpf = uniqueCpf();
+        authService.register(new RegisterRequest("Paciente Compartilhado", patSharedEmail, "secret123", PublicUserRole.PATIENT, patSharedCpf));
+        authService.register(new RegisterRequest("Paciente Exclusivo A", patOnlyAEmail, "secret123", PublicUserRole.PATIENT, patOnlyACpf));
         Long patSharedId = userRepository.findByEmail(patSharedEmail).orElseThrow().getId();
         Long patOnlyAId = userRepository.findByEmail(patOnlyAEmail).orElseThrow().getId();
 
-        // Psy Auto cria vínculo autônomo (clinic = null) e sessão autônoma com patShared
-        LinkResponse autoLink = linkService.createLink(psyAutoEmail, new CreateLinkRequest(patSharedEmail));
+        // Psy Auto cria vínculo autônomo (clinic = null) e paciente aceita
+        linkService.createLink(psyAutoEmail, new CreateLinkRequest(patSharedCpf));
+        LinkResponse autoLink = linkService.acceptLink(patSharedEmail, linkService.listMyLinks(patSharedEmail).getFirst().id());
         PatientPsychologistLink savedAutoLink = linkRepository.findById(autoLink.id()).orElseThrow();
         assertThat(savedAutoLink.getClinic()).isNull();
 
@@ -631,22 +662,26 @@ class MultiTenantClinicTest {
                         .header("Authorization", "Bearer " + tokenAdminA))
                 .andExpect(status().isOk());
 
-        // Triagem na Clínica A vincula patShared e patOnlyA com clinic = Clínica A
-        MvcResult triageShared = mockMvc().perform(post("/api/admin/triage")
+        // Triagem na Clínica A vincula patShared e patOnlyA com clinic = Clínica A (PENDING) e pacientes aceitam
+        mockMvc().perform(post("/api/admin/triage")
                         .header("Authorization", "Bearer " + tokenAdminA)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"psychologistId\":" + psyAId + ",\"patientEmail\":\"" + patSharedEmail + "\"}"))
-                .andExpect(status().isCreated())
-                .andReturn();
-        Long sharedLinkId = ((Number) JsonPath.read(triageShared.getResponse().getContentAsString(), "$.id")).longValue();
+                        .content("{\"psychologistId\":" + psyAId + ",\"cpf\":\"" + patSharedCpf + "\"}"))
+                .andExpect(status().isAccepted());
+        Long sharedLinkId = linkService.listMyLinks(patSharedEmail).stream()
+                .filter(l -> l.psychologistId().equals(psyAId))
+                .findFirst().orElseThrow().id();
+        linkService.acceptLink(patSharedEmail, sharedLinkId);
         Clinic clinicA = clinicRepository.findByCnpj(cnpjA).orElseThrow();
         assertThat(linkRepository.findById(sharedLinkId).orElseThrow().getClinic().getId()).isEqualTo(clinicA.getId());
 
         mockMvc().perform(post("/api/admin/triage")
                         .header("Authorization", "Bearer " + tokenAdminA)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"psychologistId\":" + psyAId + ",\"patientEmail\":\"" + patOnlyAEmail + "\"}"))
-                .andExpect(status().isCreated());
+                        .content("{\"psychologistId\":" + psyAId + ",\"cpf\":\"" + patOnlyACpf + "\"}"))
+                .andExpect(status().isAccepted());
+        Long onlyALinkId = linkService.listMyLinks(patOnlyAEmail).getFirst().id();
+        linkService.acceptLink(patOnlyAEmail, onlyALinkId);
 
         // Admin A NÃO pode desativar patShared porque possui vínculo autônomo ativo (DoS cross-tenant) -> 403 com mensagem clara
         mockMvc().perform(patch("/api/admin/users/" + patSharedId + "/status")
