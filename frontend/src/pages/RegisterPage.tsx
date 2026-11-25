@@ -55,7 +55,7 @@ export function RegisterPage() {
                     Já possui conta?{' '}
                     <Link
                         to="/login"
-                        className="font-semibold text-[#1E6B63] hover:text-[#16544E] transition"
+                        className="font-semibold text-primary-ink hover:underline transition"
                     >
                         Fazer login
                     </Link>
@@ -69,8 +69,8 @@ export function RegisterPage() {
                         onClick={() => setRole('PATIENT')}
                         className={`text-left p-3 rounded-xl border transition cursor-pointer ${
                             role === 'PATIENT'
-                                ? 'bg-[#E8F3F1] border-[#1E6B63] text-[#164E48]'
-                                : 'bg-[#F9FAF8] border-[#E2E6E1] text-[#4A5D61] hover:border-[#C9D2CE]'
+                                ? 'bg-primary-tint border-primary-ink text-primary-tint-ink'
+                                : 'bg-subsurface border-border-subtle text-ink-secondary hover:bg-subsurface-muted hover:text-ink'
                         }`}
                     >
                         <div className="flex items-center gap-2 font-semibold text-sm">
@@ -87,8 +87,8 @@ export function RegisterPage() {
                         onClick={() => setRole('PSYCHOLOGIST')}
                         className={`text-left p-3 rounded-xl border transition cursor-pointer ${
                             role === 'PSYCHOLOGIST'
-                                ? 'bg-[#E8F3F1] border-[#1E6B63] text-[#164E48]'
-                                : 'bg-[#F9FAF8] border-[#E2E6E1] text-[#4A5D61] hover:border-[#C9D2CE]'
+                                ? 'bg-primary-tint border-primary-ink text-primary-tint-ink'
+                                : 'bg-subsurface border-border-subtle text-ink-secondary hover:bg-subsurface-muted hover:text-ink'
                         }`}
                     >
                         <div className="flex items-center gap-2 font-semibold text-sm">
@@ -104,12 +104,12 @@ export function RegisterPage() {
                 <div>
                     <label
                         htmlFor="register-name"
-                        className="block text-sm font-medium text-[#132226] mb-1.5"
+                        className="block text-sm font-medium text-ink mb-1.5"
                     >
                         Nome completo
                     </label>
                     <div className="relative">
-                        <User className="h-4 w-4 text-[#4A5D61] absolute left-3.5 top-3" />
+                        <User className="h-4 w-4 text-ink-secondary absolute left-3.5 top-3" />
                         <input
                             id="register-name"
                             type="text"
@@ -119,7 +119,7 @@ export function RegisterPage() {
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="Ex.: Dra. Ana Silva"
-                            className="w-full pl-10 pr-3 py-2.5 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] placeholder:text-[#4A5D61]/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63] transition"
+                            className="w-full pl-10 pr-3 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink transition"
                         />
                     </div>
                 </div>
@@ -127,12 +127,12 @@ export function RegisterPage() {
                 <div>
                     <label
                         htmlFor="register-email"
-                        className="block text-sm font-medium text-[#132226] mb-1.5"
+                        className="block text-sm font-medium text-ink mb-1.5"
                     >
                         E-mail
                     </label>
                     <div className="relative">
-                        <Mail className="h-4 w-4 text-[#4A5D61] absolute left-3.5 top-3" />
+                        <Mail className="h-4 w-4 text-ink-secondary absolute left-3.5 top-3" />
                         <input
                             id="register-email"
                             type="email"
@@ -141,7 +141,7 @@ export function RegisterPage() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="seu@email.com"
-                            className="w-full pl-10 pr-3 py-2.5 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] placeholder:text-[#4A5D61]/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63] transition"
+                            className="w-full pl-10 pr-3 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink transition"
                         />
                     </div>
                 </div>
@@ -149,12 +149,12 @@ export function RegisterPage() {
                 <div>
                     <label
                         htmlFor="register-password"
-                        className="block text-sm font-medium text-[#132226] mb-1.5"
+                        className="block text-sm font-medium text-ink mb-1.5"
                     >
                         Senha
                     </label>
                     <div className="relative">
-                        <Lock className="h-4 w-4 text-[#4A5D61] absolute left-3.5 top-3" />
+                        <Lock className="h-4 w-4 text-ink-secondary absolute left-3.5 top-3" />
                         <input
                             id="register-password"
                             type="password"
@@ -164,7 +164,7 @@ export function RegisterPage() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="Mínimo 6 caracteres"
-                            className="w-full pl-10 pr-3 py-2.5 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] placeholder:text-[#4A5D61]/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63] transition"
+                            className="w-full pl-10 pr-3 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink transition"
                         />
                     </div>
                 </div>
@@ -172,7 +172,7 @@ export function RegisterPage() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-2.5 px-4 bg-[#1E6B63] hover:bg-[#16544E] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition cursor-pointer"
+                    className="w-full py-2.5 px-4 bg-primary hover:bg-primary-hover disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition cursor-pointer"
                 >
                     {loading ? 'Criando conta...' : 'Criar conta'}
                 </button>

@@ -25,8 +25,8 @@ export function FeedbackBanner({ feedback, onClose }: FeedbackBannerProps) {
             role="status"
             className={`rounded-xl px-4 py-3 text-sm border border-l-4 flex items-center justify-between gap-3 shadow-surface ${
                 isSuccess
-                    ? 'bg-[#E8F4EE] border-[#C6E3D3] border-l-[#1B5E3F] text-[#1B5E3F]'
-                    : 'bg-[#FDF0EF] border-[#F3C9C8] border-l-[#9E2A2B] text-[#9E2A2B]'
+                    ? 'bg-success-bg border-success-border border-l-success-ink text-success-ink'
+                    : 'bg-danger-bg border-danger-border border-l-danger-ink text-danger-ink'
             }`}
         >
             <div className="flex items-center gap-2.5 min-w-0">
@@ -41,7 +41,7 @@ export function FeedbackBanner({ feedback, onClose }: FeedbackBannerProps) {
                 type="button"
                 onClick={onClose}
                 aria-label="Fechar aviso"
-                className="p-1 rounded-lg hover:bg-black/5 transition cursor-pointer shrink-0"
+                className="p-1 rounded-lg hover:bg-ink/10 transition cursor-pointer shrink-0"
             >
                 <X className="h-4 w-4" />
             </button>

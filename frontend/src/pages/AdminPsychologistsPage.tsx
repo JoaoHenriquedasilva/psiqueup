@@ -78,7 +78,7 @@ export function AdminPsychologistsPage() {
     return (
         <DashboardShell
             roleBadgeLabel="Administração"
-            roleBadgeClassName="bg-[#FDF5E6] text-[#8C5311]"
+            roleBadgeClassName="bg-warning-bg text-warning-ink"
             navItems={ADMIN_NAV_ITEMS}
             pageTitle="Psicólogos & CRP"
             pageSubtitle="Valide registros profissionais no CFP e ative ou desative o acesso dos profissionais."
@@ -87,7 +87,7 @@ export function AdminPsychologistsPage() {
                     href="https://cadastro.cfp.org.br/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#164E48] bg-[#E8F3F1] hover:bg-[#D7EAE6] rounded-xl border border-[#C9E2DD] transition"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-primary-tint-ink bg-primary-tint hover:opacity-90 rounded-xl border border-primary-tint-border transition"
                 >
                     <ExternalLink className="h-3.5 w-3.5" />
                     Consultar Cadastro Nacional CFP
@@ -97,27 +97,27 @@ export function AdminPsychologistsPage() {
             onCloseFeedback={() => setFeedback(null)}
         >
             {loading ? (
-                <div className="bg-white rounded-2xl border border-[#E2E6E1] p-12 text-center shadow-surface">
-                    <p className="text-sm text-[#4A5D61]">Carregando psicólogos da clínica...</p>
+                <div className="bg-surface rounded-2xl border border-border-subtle p-12 text-center shadow-surface">
+                    <p className="text-sm text-ink-secondary">Carregando psicólogos da clínica...</p>
                 </div>
             ) : (
-                <section className="bg-white rounded-2xl border border-[#E2E6E1] p-6 shadow-surface">
+                <section className="bg-surface rounded-2xl border border-border-subtle p-6 shadow-surface">
                     <div className="flex items-center justify-between gap-3 mb-4">
-                        <h2 className="font-display text-lg font-semibold text-[#132226] flex items-center gap-2">
-                            <Users className="h-5 w-5 text-[#1E6B63]" />
+                        <h2 className="font-display text-lg font-semibold text-ink flex items-center gap-2">
+                            <Users className="h-5 w-5 text-primary-ink" />
                             Profissionais Cadastrados
                         </h2>
-                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0F2ED] text-[#4A5D61] tabular-nums">
+                        <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-subsurface-muted text-ink-secondary tabular-nums">
                             {psychologists.length}
                         </span>
                     </div>
 
                     {psychologists.length === 0 ? (
-                        <p className="text-sm text-[#4A5D61] text-center py-8">
+                        <p className="text-sm text-ink-secondary text-center py-8">
                             Nenhum psicólogo cadastrado até o momento.
                         </p>
                     ) : (
-                        <div className="divide-y divide-[#E2E6E1]">
+                        <div className="divide-y divide-border-subtle">
                             {psychologists.map((psych) => {
                                 const isUpdating = updatingUserId === psych.userId;
                                 const isConfirming = confirmingDeactivateId === psych.userId;
@@ -129,40 +129,40 @@ export function AdminPsychologistsPage() {
                                                 <InitialsAvatar name={psych.name} />
                                                 <div className="space-y-1">
                                                     <div className="flex items-center gap-2 flex-wrap">
-                                                        <p className="text-sm font-semibold text-[#132226]">
+                                                        <p className="text-sm font-semibold text-ink">
                                                             {psych.name}
                                                         </p>
                                                         <span
                                                             className={`text-xs px-2.5 py-0.5 rounded-full font-medium border ${
                                                                 psych.active
-                                                                    ? 'bg-[#E8F4EE] text-[#1B5E3F] border-[#C6E3D3]'
-                                                                    : 'bg-[#F1F3F2] text-[#526064] border-[#DCE1DF]'
+                                                                    ? 'bg-success-bg text-success-ink border-success-border'
+                                                                    : 'bg-neutral-bg text-neutral-ink border-neutral-border'
                                                             }`}
                                                         >
                                                             {psych.active ? 'Ativo' : 'Inativo'}
                                                         </span>
                                                         {psych.crp ? (
-                                                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#EEF3F7] text-[#2E4A63] border border-[#D4E0EB] font-medium tabular-nums">
+                                                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-inst-tint text-slate-inst-ink border border-slate-inst-border font-medium tabular-nums">
                                                                 CRP {psych.crp}
                                                             </span>
                                                         ) : (
-                                                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#FDF5E6] text-[#8C5311] border border-[#F3DFB6] font-medium">
+                                                            <span className="text-xs px-2.5 py-0.5 rounded-full bg-warning-bg text-warning-ink border border-warning-border font-medium">
                                                                 CRP Pendente
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <p className="text-xs text-[#4A5D61]">
+                                                    <p className="text-xs text-ink-secondary">
                                                         {psych.email}
                                                         {psych.approachName
                                                             ? ` • ${psych.approachName}`
                                                             : ''}
                                                     </p>
-                                                    <p className="text-xs text-[#4A5D61] tabular-nums">
+                                                    <p className="text-xs text-ink-secondary tabular-nums">
                                                         {psych.activePatientsCount} paciente(s)
                                                         ativo(s) • {psych.totalSessionsCount}{' '}
                                                         sessão(ões)
                                                         {psych.disputedSessionsCount > 0 && (
-                                                            <span className="text-[#9E2A2B] font-semibold ml-1.5">
+                                                            <span className="text-danger-ink font-semibold ml-1.5">
                                                                 • {psych.disputedSessionsCount}{' '}
                                                                 contestação(ões)
                                                             </span>
@@ -182,7 +182,7 @@ export function AdminPsychologistsPage() {
                                                                     psych.userId
                                                                 )
                                                             }
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#9E2A2B] bg-[#FDF0EF] hover:bg-[#FADBD9] rounded-lg border border-[#F3C9C8] cursor-pointer disabled:opacity-60 transition"
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-danger-ink bg-danger-bg hover:opacity-90 rounded-lg border border-danger-border cursor-pointer disabled:opacity-60 transition"
                                                         >
                                                             <UserX className="h-3.5 w-3.5" />
                                                             Desativar conta
@@ -198,7 +198,7 @@ export function AdminPsychologistsPage() {
                                                                 true
                                                             )
                                                         }
-                                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#1B5E3F] bg-[#E8F4EE] hover:bg-[#D5ECDF] rounded-lg border border-[#C6E3D3] cursor-pointer disabled:opacity-60 transition"
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-success-ink bg-success-bg hover:opacity-90 rounded-lg border border-success-border cursor-pointer disabled:opacity-60 transition"
                                                     >
                                                         <UserCheck className="h-3.5 w-3.5" />
                                                         {isUpdating
@@ -210,8 +210,8 @@ export function AdminPsychologistsPage() {
                                         </div>
 
                                         {isConfirming && (
-                                            <div className="rounded-xl bg-[#FDF0EF] border border-[#F3C9C8] p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                                <p className="text-xs font-medium text-[#9E2A2B]">
+                                            <div className="rounded-xl bg-danger-bg border border-danger-border p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                <p className="text-xs font-medium text-danger-ink">
                                                     Desativar o acesso de{' '}
                                                     <strong>{psych.name}</strong>? O token atual será
                                                     invalidado imediatamente.
@@ -226,7 +226,7 @@ export function AdminPsychologistsPage() {
                                                                 false
                                                             )
                                                         }
-                                                        className="px-3 py-1.5 bg-[#9E2A2B] hover:bg-[#822223] text-white text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-60 transition"
+                                                        className="px-3 py-1.5 bg-danger-solid hover:bg-danger-solid-hover text-white text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-60 transition"
                                                     >
                                                         {isUpdating
                                                             ? 'Desativando...'
@@ -238,7 +238,7 @@ export function AdminPsychologistsPage() {
                                                         onClick={() =>
                                                             setConfirmingDeactivateId(null)
                                                         }
-                                                        className="px-3 py-1.5 bg-white text-[#4A5D61] text-xs font-medium rounded-lg border border-[#E2E6E1] hover:bg-[#F9FAF8] cursor-pointer disabled:opacity-60 transition"
+                                                        className="px-3 py-1.5 bg-surface text-ink-secondary text-xs font-medium rounded-lg border border-border-subtle hover:bg-subsurface-muted cursor-pointer disabled:opacity-60 transition"
                                                     >
                                                         Voltar
                                                     </button>

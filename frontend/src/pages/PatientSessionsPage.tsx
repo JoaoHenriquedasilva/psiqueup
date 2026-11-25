@@ -103,14 +103,14 @@ export function PatientSessionsPage() {
             <div key={session.id} className="py-4 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-xl bg-[#F0F2ED] text-[#4A5D61] mt-0.5">
+                        <div className="p-2 rounded-xl bg-subsurface-muted text-ink-secondary mt-0.5">
                             <Clock className="h-4 w-4" />
                         </div>
                         <div>
-                            <p className="text-sm font-semibold text-[#132226]">
+                            <p className="text-sm font-semibold text-ink">
                                 Sessão com {session.psychologistName}
                             </p>
-                            <p className="text-xs text-[#4A5D61] mt-0.5 tabular-nums">
+                            <p className="text-xs text-ink-secondary mt-0.5 tabular-nums">
                                 {formatSessionDateTime(session.startTime, session.endTime)}
                             </p>
                         </div>
@@ -133,7 +133,7 @@ export function PatientSessionsPage() {
                                         status: 'CANCELED',
                                     })
                                 }
-                                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#526064] bg-[#F9FAF8] hover:bg-[#F0F2ED] rounded-lg border border-[#E2E6E1] cursor-pointer disabled:opacity-60 transition"
+                                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-neutral-ink bg-subsurface hover:bg-subsurface-muted rounded-lg border border-border-subtle cursor-pointer disabled:opacity-60 transition"
                             >
                                 <XCircle className="h-3.5 w-3.5" />
                                 Cancelar
@@ -151,7 +151,7 @@ export function PatientSessionsPage() {
                                     })
                                 }
                                 title="Reportar divergência neste registro de sessão"
-                                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#9E2A2B] bg-[#FDF0EF] hover:bg-[#FADBD9] rounded-lg border border-[#F3C9C8] cursor-pointer disabled:opacity-60 transition"
+                                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-danger-ink bg-danger-bg hover:opacity-90 rounded-lg border border-danger-border cursor-pointer disabled:opacity-60 transition"
                             >
                                 <AlertTriangle className="h-3.5 w-3.5" />
                                 Contestar registro
@@ -164,15 +164,15 @@ export function PatientSessionsPage() {
                     <div
                         className={`rounded-xl p-3.5 border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
                             pendingConfirm === 'DISPUTED'
-                                ? 'bg-[#FDF0EF] border-[#F3C9C8]'
-                                : 'bg-[#F9FAF8] border-[#E2E6E1]'
+                                ? 'bg-danger-bg border-danger-border'
+                                : 'bg-subsurface border-border-subtle'
                         }`}
                     >
                         <p
                             className={`text-xs font-medium ${
                                 pendingConfirm === 'DISPUTED'
-                                    ? 'text-[#9E2A2B]'
-                                    : 'text-[#132226]'
+                                    ? 'text-danger-ink'
+                                    : 'text-ink'
                             }`}
                         >
                             {pendingConfirm === 'DISPUTED'
@@ -188,8 +188,8 @@ export function PatientSessionsPage() {
                                 }
                                 className={`px-3 py-1.5 text-white text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-60 transition ${
                                     pendingConfirm === 'DISPUTED'
-                                        ? 'bg-[#9E2A2B] hover:bg-[#822223]'
-                                        : 'bg-[#132226] hover:bg-[#23393F]'
+                                        ? 'bg-danger-solid hover:bg-danger-solid-hover'
+                                        : 'bg-primary hover:bg-primary-hover'
                                 }`}
                             >
                                 {isUpdatingThis
@@ -202,7 +202,7 @@ export function PatientSessionsPage() {
                                 type="button"
                                 disabled={isUpdatingThis}
                                 onClick={() => setConfirmingSession(null)}
-                                className="px-3 py-1.5 bg-white text-[#4A5D61] text-xs font-medium rounded-lg border border-[#E2E6E1] hover:bg-[#F9FAF8] cursor-pointer disabled:opacity-60 transition"
+                                className="px-3 py-1.5 bg-surface text-ink-secondary text-xs font-medium rounded-lg border border-border-subtle hover:bg-subsurface-muted cursor-pointer disabled:opacity-60 transition"
                             >
                                 Voltar
                             </button>
@@ -216,7 +216,7 @@ export function PatientSessionsPage() {
     return (
         <DashboardShell
             roleBadgeLabel="Área do Paciente"
-            roleBadgeClassName="bg-[#EEF3F7] text-[#2E4A63]"
+            roleBadgeClassName="bg-slate-inst-tint text-slate-inst-ink"
             navItems={PATIENT_NAV_ITEMS}
             pageTitle="Minhas Sessões"
             pageSubtitle="Acompanhe seus próximos horários agendados e o histórico de atendimentos."
@@ -224,52 +224,52 @@ export function PatientSessionsPage() {
             onCloseFeedback={() => setFeedback(null)}
         >
             {loading ? (
-                <div className="bg-white rounded-2xl border border-[#E2E6E1] p-12 text-center shadow-surface">
-                    <p className="text-sm text-[#4A5D61]">Carregando suas sessões...</p>
+                <div className="bg-surface rounded-2xl border border-border-subtle p-12 text-center shadow-surface">
+                    <p className="text-sm text-ink-secondary">Carregando suas sessões...</p>
                 </div>
             ) : (
                 <div className="space-y-6">
                     {/* Próximas Sessões (SCHEDULED) */}
-                    <section className="bg-white rounded-2xl border border-[#E2E6E1] p-6 shadow-surface">
+                    <section className="bg-surface rounded-2xl border border-border-subtle p-6 shadow-surface">
                         <div className="flex items-center justify-between gap-3 mb-4">
-                            <h2 className="font-display text-lg font-semibold text-[#132226] flex items-center gap-2">
-                                <Calendar className="h-5 w-5 text-[#1E6B63]" />
+                            <h2 className="font-display text-lg font-semibold text-ink flex items-center gap-2">
+                                <Calendar className="h-5 w-5 text-primary-ink" />
                                 Próximas Sessões
                             </h2>
-                            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#EEF3F7] text-[#2E4A63] tabular-nums">
+                            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-inst-tint text-slate-inst-ink tabular-nums">
                                 {upcomingSessions.length}
                             </span>
                         </div>
 
                         {upcomingSessions.length === 0 ? (
-                            <p className="text-sm text-[#4A5D61] text-center py-6">
+                            <p className="text-sm text-ink-secondary text-center py-6">
                                 Você não possui próximas sessões agendadas.
                             </p>
                         ) : (
-                            <div className="divide-y divide-[#E2E6E1]">
+                            <div className="divide-y divide-border-subtle">
                                 {upcomingSessions.map(renderSessionRow)}
                             </div>
                         )}
                     </section>
 
                     {/* Histórico */}
-                    <section className="bg-white rounded-2xl border border-[#E2E6E1] p-6 shadow-surface">
+                    <section className="bg-surface rounded-2xl border border-border-subtle p-6 shadow-surface">
                         <div className="flex items-center justify-between gap-3 mb-4">
-                            <h2 className="font-display text-lg font-semibold text-[#132226] flex items-center gap-2">
-                                <History className="h-5 w-5 text-[#3B5B78]" />
+                            <h2 className="font-display text-lg font-semibold text-ink flex items-center gap-2">
+                                <History className="h-5 w-5 text-slate-inst" />
                                 Histórico de Atendimentos
                             </h2>
-                            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0F2ED] text-[#4A5D61] tabular-nums">
+                            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-subsurface-muted text-ink-secondary tabular-nums">
                                 {historySessions.length}
                             </span>
                         </div>
 
                         {historySessions.length === 0 ? (
-                            <p className="text-sm text-[#4A5D61] text-center py-6">
+                            <p className="text-sm text-ink-secondary text-center py-6">
                                 Nenhum registro no histórico até o momento.
                             </p>
                         ) : (
-                            <div className="divide-y divide-[#E2E6E1]">
+                            <div className="divide-y divide-border-subtle">
                                 {historySessions.map(renderSessionRow)}
                             </div>
                         )}

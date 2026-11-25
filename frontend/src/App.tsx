@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { useAuth } from './contexts/useAuth';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminPsychologistsPage } from './pages/AdminPsychologistsPage';
@@ -56,8 +57,9 @@ function FallbackRedirect() {
 
 export function App() {
     return (
-        <AuthProvider>
-            <BrowserRouter>
+        <ThemeProvider>
+            <AuthProvider>
+                <BrowserRouter>
                 <Routes>
                     <Route
                         path="/login"
@@ -148,8 +150,9 @@ export function App() {
 
                     <Route path="*" element={<FallbackRedirect />} />
                 </Routes>
-            </BrowserRouter>
-        </AuthProvider>
+                </BrowserRouter>
+            </AuthProvider>
+        </ThemeProvider>
     );
 }
 
