@@ -1,6 +1,7 @@
 export type UserRole = 'ADMIN' | 'PSYCHOLOGIST' | 'PATIENT';
 export type LinkStatus = 'ACTIVE' | 'REJECTED';
 export type SessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW' | 'DISPUTED';
+export type ClinicPsychologistStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface AuthResponse {
     token: string;
@@ -84,4 +85,19 @@ export interface AdminPsychologistItem {
     activePatientsCount: number;
     totalSessionsCount: number;
     disputedSessionsCount: number;
+}
+
+export interface ClinicLinkItem {
+    id: number;
+    clinicId: number;
+    clinicName: string;
+    clinicCnpj: string;
+    psychologistId: number;
+    psychologistName: string;
+    psychologistEmail: string;
+    psychologistCrp: string;
+    approachName: string;
+    status: ClinicPsychologistStatus;
+    createdAt: string;
+    updatedAt: string;
 }
