@@ -2,8 +2,6 @@ package com.psiqueup.api.service;
 
 import com.psiqueup.api.domain.entity.Clinic;
 import com.psiqueup.api.domain.entity.ClinicPsychologist;
-import com.psiqueup.api.domain.entity.PatientProfile;
-import com.psiqueup.api.domain.entity.PatientPsychologistLink;
 import com.psiqueup.api.domain.entity.PsychologistProfile;
 import com.psiqueup.api.domain.entity.Session;
 import com.psiqueup.api.domain.entity.User;
@@ -16,11 +14,10 @@ import com.psiqueup.api.dto.admin.AdminPsychologistResponse;
 import com.psiqueup.api.dto.admin.AdminTriageRequest;
 import com.psiqueup.api.dto.admin.AdminUserStatusResponse;
 import com.psiqueup.api.dto.clinic.ClinicLinkResponse;
-import com.psiqueup.api.dto.link.LinkResponse;
+import com.psiqueup.api.dto.link.NeutralActionResponse;
 import com.psiqueup.api.dto.session.SessionResponse;
 import com.psiqueup.api.repository.ClinicPsychologistRepository;
 import com.psiqueup.api.repository.ClinicRepository;
-import com.psiqueup.api.repository.PatientProfileRepository;
 import com.psiqueup.api.repository.PatientPsychologistLinkRepository;
 import com.psiqueup.api.repository.SessionRepository;
 import com.psiqueup.api.repository.UserRepository;
@@ -46,9 +43,9 @@ public class AdminService {
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
     private final ClinicPsychologistRepository clinicPsychologistRepository;
-    private final PatientProfileRepository patientRepository;
     private final PatientPsychologistLinkRepository linkRepository;
     private final SessionRepository sessionRepository;
+    private final LinkService linkService;
 
     @Transactional(readOnly = true)
     public AdminDashboardResponse getDashboardMetrics(String adminEmail) {
@@ -252,7 +249,7 @@ public class AdminService {
     }
 
     @Transactional
-    public LinkResponse triagePatient(String adminEmail, AdminTriageRequest request) {
+    public NeutralActionResponse triagePatient(String adminEmail, AdminTriageRequest request) {
         Clinic clinic = resolveAdminClinic(adminEmail).clinic();
 
         ClinicPsychologist clinicPsych = clinicPsychologistRepository
@@ -268,32 +265,7 @@ public class AdminService {
             throw new IllegalArgumentException("Não é possível realizar triagem para um psicólogo com conta inativa.");
         }
 
-        String normalizedPatientEmail = EmailNormalizer.normalize(request.patientEmail());
-        User patientUser = userRepository.findByEmail(normalizedPatientEmail)
-                .filter(user -> user.getRole() == UserRole.PATIENT && Boolean.TRUE.equals(user.getActive()))
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Não foi possível concluir a triagem com o e-mail informado."
-                ));
-
-        PatientProfile patient = patientRepository.findById(patientUser.getId())
-                .orElseGet(() -> patientRepository.save(PatientProfile.builder().user(patientUser).build()));
-
-        linkRepository.findByPsychologistUserIdAndPatientUserId(psychologist.getUserId(), patient.getUserId())
-                .ifPresent(existing -> {
-                    if (existing.getStatus() == LinkStatus.REJECTED) {
-                        throw new IllegalArgumentException("Este paciente rejeitou o vínculo anteriormente e bloqueou novas vinculações.");
-                    }
-                    throw new IllegalArgumentException("Já existe um vínculo ativo entre este psicólogo e este paciente.");
-                });
-
-        PatientPsychologistLink link = PatientPsychologistLink.builder()
-                .psychologist(psychologist)
-                .patient(patient)
-                .clinic(clinic)
-                .status(LinkStatus.ACTIVE)
-                .build();
-
-        return LinkResponse.fromEntity(linkRepository.save(link));
+        return linkService.createPendingLinkIfEligible(psychologist, clinic, request.cpf());
     }
 
     private ClinicLinkResponse updatePsychologistRequestStatus(

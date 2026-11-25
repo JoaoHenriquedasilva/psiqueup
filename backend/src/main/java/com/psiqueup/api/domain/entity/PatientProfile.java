@@ -24,6 +24,12 @@ public class PatientProfile {
     @JoinColumn(name = "user_id")
     private User user;
 
+    @Column(name = "cpf_hash", unique = true, length = 64)
+    private String cpfHash;
+
+    @Column(name = "cpf_masked", length = 20)
+    private String cpfMasked;
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;

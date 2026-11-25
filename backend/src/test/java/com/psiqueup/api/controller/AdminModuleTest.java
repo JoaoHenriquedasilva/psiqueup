@@ -13,6 +13,7 @@ import com.psiqueup.api.domain.enums.UserRole;
 import com.psiqueup.api.dto.auth.RegisterRequest;
 import com.psiqueup.api.dto.link.CreateLinkRequest;
 import com.psiqueup.api.dto.link.LinkResponse;
+import com.psiqueup.api.dto.link.NeutralActionResponse;
 import com.psiqueup.api.dto.profile.UpsertPsychologistProfileRequest;
 import com.psiqueup.api.dto.session.CreateSessionRequest;
 import com.psiqueup.api.dto.session.SessionResponse;
@@ -140,6 +141,24 @@ class AdminModuleTest {
         return sb.toString();
     }
 
+    private static final java.util.concurrent.atomic.AtomicInteger CPF_SEQ = new java.util.concurrent.atomic.AtomicInteger(200000001);
+
+    private String uniqueCpf() {
+        String base = String.format("%09d", CPF_SEQ.getAndIncrement());
+        int d1 = calcCpfDigit(base, 10);
+        int d2 = calcCpfDigit(base + d1, 11);
+        return base + d1 + d2;
+    }
+
+    private int calcCpfDigit(String digits, int initialWeight) {
+        int sum = 0;
+        for (int i = 0; i < digits.length(); i++) {
+            sum += Character.getNumericValue(digits.charAt(i)) * (initialWeight - i);
+        }
+        int rem = sum % 11;
+        return rem < 2 ? 0 : 11 - rem;
+    }
+
     private User createAdminUser(String suffix) {
         User admin = User.builder()
                 .name("Admin Teste " + suffix)
@@ -165,13 +184,15 @@ class AdminModuleTest {
                 "Paciente Bloqueado",
                 "pat.block." + suffix + "@psiqueup.test",
                 "secret123",
-                PublicUserRole.PATIENT
+                PublicUserRole.PATIENT,
+                uniqueCpf()
         ));
         var psychAuth = authService.register(new RegisterRequest(
                 "Psicologo Bloqueado",
                 "psy.block." + suffix + "@psiqueup.test",
                 "secret123",
-                PublicUserRole.PSYCHOLOGIST
+                PublicUserRole.PSYCHOLOGIST,
+                null
         ));
 
         mockMvc().perform(get("/api/admin/dashboard")
@@ -192,10 +213,11 @@ class AdminModuleTest {
         String psychEmail = "psy.ok." + suffix + "@psiqueup.test";
         String pendingPsychEmail = "psy.pending." + suffix + "@psiqueup.test";
         String patientEmail = "pat.ok." + suffix + "@psiqueup.test";
+        String patientCpf = uniqueCpf();
 
-        var psychAuth = authService.register(new RegisterRequest("Dra. Clara", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
-        authService.register(new RegisterRequest("Dr. Pendente", pendingPsychEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
-        authService.register(new RegisterRequest("Carlos Paciente", patientEmail, "secret123", PublicUserRole.PATIENT));
+        var psychAuth = authService.register(new RegisterRequest("Dra. Clara", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        authService.register(new RegisterRequest("Dr. Pendente", pendingPsychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        authService.register(new RegisterRequest("Carlos Paciente", patientEmail, "secret123", PublicUserRole.PATIENT, patientCpf));
 
         String crp = uniqueCrp();
         profileDomainService.upsertPsychologistProfile(psychEmail, new UpsertPsychologistProfileRequest(crp, 1L, "TCC"));
@@ -207,7 +229,9 @@ class AdminModuleTest {
                 .psychologist(psychProfile)
                 .status(ClinicPsychologistStatus.APPROVED)
                 .build());
-        LinkResponse link = linkService.createLink(psychEmail, new CreateLinkRequest(patientEmail));
+        linkService.createLink(psychEmail, new CreateLinkRequest(patientCpf));
+        LinkResponse pendingLink = linkService.listMyLinks(patientEmail).getFirst();
+        LinkResponse link = linkService.acceptLink(patientEmail, pendingLink.id());
 
         OffsetDateTime start = OffsetDateTime.now().plusHours(4);
         SessionResponse session = sessionService.scheduleSession(
@@ -274,7 +298,7 @@ class AdminModuleTest {
         Clinic clinic = clinicRepository.findByOwnerUserId(admin.getId()).orElseThrow();
 
         String psychEmail = "psy.anti." + suffix + "@psiqueup.test";
-        authService.register(new RegisterRequest("Dr. Anti", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
+        authService.register(new RegisterRequest("Dr. Anti", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
         String crp = uniqueCrp();
         profileDomainService.upsertPsychologistProfile(psychEmail, new UpsertPsychologistProfileRequest(crp, 1L, "TCC"));
         User psychUser = userRepository.findByEmail(psychEmail).orElseThrow();
@@ -282,8 +306,11 @@ class AdminModuleTest {
 
         // Psicólogo cria vínculo e sessão autônoma ANTES de entrar na clínica (clinic_id = null)
         String patAutoEmail = "pat.auto.hist." + suffix + "@psiqueup.test";
-        authService.register(new RegisterRequest("Paciente Autônomo", patAutoEmail, "secret123", PublicUserRole.PATIENT));
-        LinkResponse autoLink = linkService.createLink(psychEmail, new CreateLinkRequest(patAutoEmail));
+        String patAutoCpf = uniqueCpf();
+        authService.register(new RegisterRequest("Paciente Autônomo", patAutoEmail, "secret123", PublicUserRole.PATIENT, patAutoCpf));
+        linkService.createLink(psychEmail, new CreateLinkRequest(patAutoCpf));
+        LinkResponse autoPending = linkService.listMyLinks(patAutoEmail).getFirst();
+        LinkResponse autoLink = linkService.acceptLink(patAutoEmail, autoPending.id());
         OffsetDateTime start = OffsetDateTime.now().plusHours(6);
         SessionResponse autoSession = sessionService.scheduleSession(
                 psychEmail, new CreateSessionRequest(autoLink.patientId(), start, start.plusHours(1)));
@@ -325,25 +352,27 @@ class AdminModuleTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value("Você não tem permissão para resolver sessões de outro consultório ou de psicólogo autônomo."));
 
-        // Anti-enumeração na triagem: e-mail inexistente, e-mail de psicólogo e paciente inativo retornam exatamente a mesma mensagem
-        String expectedAntiEnumMessage = "Não foi possível concluir a triagem com o e-mail informado.";
+        // Anti-enumeração na triagem: CPF inexistente, paciente já vinculado e paciente inativo retornam 202 Accepted com a mesma mensagem neutra
+        String expectedAntiEnumMessage = NeutralActionResponse.LINK_REQUEST_ACCEPTED_MESSAGE;
+        String nonExistentCpf = uniqueCpf();
 
         mockMvc().perform(post("/api/admin/triage")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"psychologistId\":" + psychUser.getId() + ",\"patientEmail\":\"naoexiste." + suffix + "@psiqueup.test\"}"))
-                .andExpect(status().isBadRequest())
+                        .content("{\"psychologistId\":" + psychUser.getId() + ",\"cpf\":\"" + nonExistentCpf + "\"}"))
+                .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.message").value(expectedAntiEnumMessage));
 
         mockMvc().perform(post("/api/admin/triage")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"psychologistId\":" + psychUser.getId() + ",\"patientEmail\":\"" + psychEmail + "\"}"))
-                .andExpect(status().isBadRequest())
+                        .content("{\"psychologistId\":" + psychUser.getId() + ",\"cpf\":\"" + patAutoCpf + "\"}"))
+                .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.message").value(expectedAntiEnumMessage));
 
         String inactivePatEmail = "pat.inativo." + suffix + "@psiqueup.test";
-        authService.register(new RegisterRequest("Paciente Inativo", inactivePatEmail, "secret123", PublicUserRole.PATIENT));
+        String inactivePatCpf = uniqueCpf();
+        authService.register(new RegisterRequest("Paciente Inativo", inactivePatEmail, "secret123", PublicUserRole.PATIENT, inactivePatCpf));
         User inactivePat = userRepository.findByEmail(inactivePatEmail).orElseThrow();
         inactivePat.setActive(false);
         userRepository.save(inactivePat);
@@ -351,8 +380,8 @@ class AdminModuleTest {
         mockMvc().perform(post("/api/admin/triage")
                         .header("Authorization", "Bearer " + adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"psychologistId\":" + psychUser.getId() + ",\"patientEmail\":\"" + inactivePatEmail + "\"}"))
-                .andExpect(status().isBadRequest())
+                        .content("{\"psychologistId\":" + psychUser.getId() + ",\"cpf\":\"" + inactivePatCpf + "\"}"))
+                .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.message").value(expectedAntiEnumMessage));
     }
 }

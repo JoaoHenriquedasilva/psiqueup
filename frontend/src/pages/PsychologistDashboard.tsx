@@ -230,7 +230,10 @@ export function PsychologistDashboard() {
         }
     }
 
-    const activeLinks = links.filter((l) => l.status === 'ACTIVE');
+    const activeLinks = links.filter(
+        (l): l is TherapeuticLink & { patientId: number } =>
+            l.status === 'ACTIVE' && l.patientId !== null
+    );
     const primaryClinicLink = resolvePrimaryClinicLink(clinicLinks);
     const clinicBadge = getClinicLinkBadge(primaryClinicLink?.status ?? null);
 

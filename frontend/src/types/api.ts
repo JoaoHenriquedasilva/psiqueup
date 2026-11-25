@@ -1,5 +1,5 @@
 export type UserRole = 'ADMIN' | 'PSYCHOLOGIST' | 'PATIENT';
-export type LinkStatus = 'ACTIVE' | 'REJECTED';
+export type LinkStatus = 'PENDING' | 'ACTIVE' | 'REJECTED' | 'REVOKED';
 export type SessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW' | 'DISPUTED';
 export type ClinicPsychologistStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
@@ -26,15 +26,28 @@ export interface PsychologistProfile {
     bio: string | null;
 }
 
+export interface PatientProfile {
+    userId: number;
+    name: string;
+    email: string;
+    cpfMasked: string | null;
+    hasCpf: boolean;
+}
+
+export interface NeutralActionResponse {
+    message: string;
+}
+
 export interface TherapeuticLink {
     id: number;
     psychologistId: number;
     psychologistName: string;
     psychologistCrp: string;
     approach: TherapeuticApproach;
-    patientId: number;
-    patientName: string;
-    patientEmail: string;
+    patientId: number | null;
+    patientName: string | null;
+    patientEmail: string | null;
+    patientCpfMasked: string | null;
     status: LinkStatus;
     rejectionReason: string | null;
     createdAt: string;

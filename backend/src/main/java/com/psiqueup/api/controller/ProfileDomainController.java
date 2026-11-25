@@ -1,6 +1,8 @@
 package com.psiqueup.api.controller;
 
+import com.psiqueup.api.dto.profile.PatientProfileResponse;
 import com.psiqueup.api.dto.profile.PsychologistProfileResponse;
+import com.psiqueup.api.dto.profile.UpdatePatientCpfRequest;
 import com.psiqueup.api.dto.profile.UpsertPsychologistProfileRequest;
 import com.psiqueup.api.service.ProfileDomainService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,6 +37,25 @@ public class ProfileDomainController {
     ) {
         return ResponseEntity.ok(
                 profileDomainService.upsertPsychologistProfile(authentication.getName(), request)
+        );
+    }
+
+    @GetMapping("/patient/me")
+    @Operation(summary = "Obter perfil do paciente autenticado (inclui CPF mascarado e status de cadastro do CPF)")
+    public ResponseEntity<PatientProfileResponse> getMyPatientProfile(Authentication authentication) {
+        return ResponseEntity.ok(
+                profileDomainService.getMyPatientProfile(authentication.getName())
+        );
+    }
+
+    @PutMapping("/patient/me")
+    @Operation(summary = "Cadastrar/completar CPF do paciente autenticado (contas pré-L2 sem CPF)")
+    public ResponseEntity<PatientProfileResponse> updateMyPatientCpf(
+            Authentication authentication,
+            @Valid @RequestBody UpdatePatientCpfRequest request
+    ) {
+        return ResponseEntity.ok(
+                profileDomainService.updateMyPatientCpf(authentication.getName(), request)
         );
     }
 

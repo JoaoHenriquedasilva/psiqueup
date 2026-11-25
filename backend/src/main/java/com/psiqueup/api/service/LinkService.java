@@ -13,6 +13,7 @@ import com.psiqueup.api.domain.enums.SessionStatus;
 import com.psiqueup.api.domain.enums.UserRole;
 import com.psiqueup.api.dto.link.CreateLinkRequest;
 import com.psiqueup.api.dto.link.LinkResponse;
+import com.psiqueup.api.dto.link.NeutralActionResponse;
 import com.psiqueup.api.dto.link.RejectLinkRequest;
 import com.psiqueup.api.repository.ClinicPsychologistRepository;
 import com.psiqueup.api.repository.PatientProfileRepository;
@@ -20,6 +21,7 @@ import com.psiqueup.api.repository.PatientPsychologistLinkRepository;
 import com.psiqueup.api.repository.PsychologistProfileRepository;
 import com.psiqueup.api.repository.SessionRepository;
 import com.psiqueup.api.repository.UserRepository;
+import com.psiqueup.api.security.CpfCryptoService;
 import com.psiqueup.api.util.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -39,9 +41,10 @@ public class LinkService {
     private final PatientProfileRepository patientRepository;
     private final SessionRepository sessionRepository;
     private final UserRepository userRepository;
+    private final CpfCryptoService cpfCryptoService;
 
     @Transactional
-    public LinkResponse createLink(String psychologistEmail, CreateLinkRequest request) {
+    public NeutralActionResponse createLink(String psychologistEmail, CreateLinkRequest request) {
         User psychologistUser = getActiveUserByEmail(psychologistEmail);
         if (psychologistUser.getRole() != UserRole.PSYCHOLOGIST) {
             throw new AccessDeniedException("Apenas psicólogos podem criar vínculos terapêuticos.");
@@ -50,42 +53,40 @@ public class LinkService {
         PsychologistProfile psychologist = psychologistRepository.findById(psychologistUser.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Complete seu perfil profissional (CRP) antes de vincular pacientes."));
 
-        String normalizedPatientEmail = EmailNormalizer.normalize(request.patientEmail());
-        User patientUser = userRepository.findByEmail(normalizedPatientEmail)
-                .orElseThrow(() -> new IllegalArgumentException("Nenhum usuário encontrado com este e-mail."));
-
-        if (patientUser.getRole() != UserRole.PATIENT) {
-            throw new IllegalArgumentException("O usuário informado não possui perfil de paciente.");
-        }
-
-        if (!Boolean.TRUE.equals(patientUser.getActive())) {
-            throw new IllegalArgumentException("Não é possível vincular um paciente com conta inativa.");
-        }
-
-        PatientProfile patient = patientRepository.findById(patientUser.getId())
-                .orElseGet(() -> patientRepository.save(PatientProfile.builder().user(patientUser).build()));
-
-        linkRepository.findByPsychologistUserIdAndPatientUserId(psychologist.getUserId(), patient.getUserId())
-                .ifPresent(existing -> {
-                    if (existing.getStatus() == LinkStatus.REJECTED) {
-                        throw new IllegalArgumentException("Este paciente rejeitou o vínculo anteriormente e bloqueou novas vinculações.");
-                    }
-                    throw new IllegalArgumentException("Já existe um vínculo ativo com este paciente.");
-                });
-
         Clinic clinic = clinicPsychologistRepository
                 .findFirstByPsychologistUserIdAndStatus(psychologist.getUserId(), ClinicPsychologistStatus.APPROVED)
                 .map(ClinicPsychologist::getClinic)
                 .orElse(null);
 
-        PatientPsychologistLink link = PatientPsychologistLink.builder()
-                .psychologist(psychologist)
-                .patient(patient)
-                .clinic(clinic)
-                .status(LinkStatus.ACTIVE)
-                .build();
+        return createPendingLinkIfEligible(psychologist, clinic, request.cpf());
+    }
 
-        return LinkResponse.fromEntity(linkRepository.save(link));
+    @Transactional
+    public NeutralActionResponse createPendingLinkIfEligible(
+            PsychologistProfile psychologist,
+            Clinic clinic,
+            String rawCpf
+    ) {
+        String cpfHash = cpfCryptoService.hashCpf(rawCpf);
+
+        patientRepository.findByCpfHash(cpfHash).ifPresent(patient -> {
+            User patientUser = patient.getUser();
+            if (patientUser.getRole() == UserRole.PATIENT
+                    && Boolean.TRUE.equals(patientUser.getActive())
+                    && linkRepository.findByPsychologistUserIdAndPatientUserId(
+                            psychologist.getUserId(), patient.getUserId()).isEmpty()) {
+                PatientPsychologistLink link = PatientPsychologistLink.builder()
+                        .psychologist(psychologist)
+                        .patient(patient)
+                        .clinic(clinic)
+                        .status(LinkStatus.PENDING)
+                        .build();
+
+                linkRepository.save(link);
+            }
+        });
+
+        return NeutralActionResponse.linkRequestRegistered();
     }
 
     @Transactional(readOnly = true)
@@ -94,7 +95,7 @@ public class LinkService {
 
         if (user.getRole() == UserRole.PSYCHOLOGIST) {
             return linkRepository.findAllByPsychologistUserId(user.getId()).stream()
-                    .map(LinkResponse::fromEntity)
+                    .map(LinkResponse::fromEntityForStaff)
                     .toList();
         }
 
@@ -105,6 +106,28 @@ public class LinkService {
         }
 
         throw new AccessDeniedException("Perfil sem acesso a vínculos terapêuticos.");
+    }
+
+    @Transactional
+    public LinkResponse acceptLink(String patientEmail, Long linkId) {
+        User patientUser = getActiveUserByEmail(patientEmail);
+        if (patientUser.getRole() != UserRole.PATIENT) {
+            throw new AccessDeniedException("Apenas pacientes podem aceitar vínculos terapêuticos.");
+        }
+
+        PatientPsychologistLink link = linkRepository.findById(linkId)
+                .orElseThrow(() -> new IllegalArgumentException("Vínculo não encontrado."));
+
+        if (!link.getPatient().getUserId().equals(patientUser.getId())) {
+            throw new AccessDeniedException("Você só pode aceitar vínculos associados à sua conta.");
+        }
+
+        if (link.getStatus() != LinkStatus.PENDING) {
+            throw new IllegalArgumentException("Apenas vínculos pendentes podem ser aceitos.");
+        }
+
+        link.setStatus(LinkStatus.ACTIVE);
+        return LinkResponse.fromEntity(linkRepository.save(link));
     }
 
     @Transactional
@@ -121,8 +144,8 @@ public class LinkService {
             throw new AccessDeniedException("Você só pode rejeitar vínculos associados à sua conta.");
         }
 
-        if (link.getStatus() == LinkStatus.REJECTED) {
-            throw new IllegalArgumentException("Este vínculo já foi rejeitado.");
+        if (link.getStatus() == LinkStatus.REJECTED || link.getStatus() == LinkStatus.REVOKED) {
+            throw new IllegalArgumentException("Este vínculo já foi encerrado.");
         }
 
         link.setStatus(LinkStatus.REJECTED);

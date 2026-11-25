@@ -15,20 +15,31 @@ public record LinkResponse(
         Long patientId,
         String patientName,
         String patientEmail,
+        String patientCpfMasked,
         LinkStatus status,
         String rejectionReason,
         OffsetDateTime createdAt
 ) {
     public static LinkResponse fromEntity(PatientPsychologistLink link) {
+        return build(link, false);
+    }
+
+    public static LinkResponse fromEntityForStaff(PatientPsychologistLink link) {
+        boolean hidePatientPii = link.getStatus() != LinkStatus.ACTIVE;
+        return build(link, hidePatientPii);
+    }
+
+    private static LinkResponse build(PatientPsychologistLink link, boolean hidePatientPii) {
         return new LinkResponse(
                 link.getId(),
                 link.getPsychologist().getUserId(),
                 link.getPsychologist().getUser().getName(),
                 link.getPsychologist().getCrp(),
                 TherapeuticApproachResponse.fromEntity(link.getPsychologist().getApproach()),
-                link.getPatient().getUserId(),
-                link.getPatient().getUser().getName(),
-                link.getPatient().getUser().getEmail(),
+                hidePatientPii ? null : link.getPatient().getUserId(),
+                hidePatientPii ? null : link.getPatient().getUser().getName(),
+                hidePatientPii ? null : link.getPatient().getUser().getEmail(),
+                link.getPatient().getCpfMasked(),
                 link.getStatus(),
                 link.getRejectionReason(),
                 link.getCreatedAt()

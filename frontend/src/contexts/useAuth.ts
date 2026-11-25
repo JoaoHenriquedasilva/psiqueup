@@ -18,7 +18,8 @@ export interface AuthContextData {
         name: string,
         email: string,
         password: string,
-        role: 'PSYCHOLOGIST' | 'PATIENT'
+        role: 'PSYCHOLOGIST' | 'PATIENT',
+        cpf?: string
     ) => Promise<UserRole>;
     registerClinic: (payload: RegisterClinicPayload) => Promise<UserRole>;
     logout: () => void;

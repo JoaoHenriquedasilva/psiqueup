@@ -9,7 +9,7 @@ import com.psiqueup.api.dto.admin.AdminUserStatusResponse;
 import com.psiqueup.api.dto.admin.ResolveDisputedSessionRequest;
 import com.psiqueup.api.dto.admin.UpdateUserStatusRequest;
 import com.psiqueup.api.dto.clinic.ClinicLinkResponse;
-import com.psiqueup.api.dto.link.LinkResponse;
+import com.psiqueup.api.dto.link.NeutralActionResponse;
 import com.psiqueup.api.dto.session.SessionResponse;
 import com.psiqueup.api.service.AdminService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -73,12 +73,12 @@ public class AdminController {
     }
 
     @PostMapping("/triage")
-    @Operation(summary = "Realizar triagem indicando/vinculando um paciente a um psicólogo aprovado da clínica")
-    public ResponseEntity<LinkResponse> triagePatient(
+    @Operation(summary = "Realizar triagem indicando/vinculando um paciente via CPF a um psicólogo aprovado da clínica para consentimento")
+    public ResponseEntity<NeutralActionResponse> triagePatient(
             Authentication authentication,
             @Valid @RequestBody AdminTriageRequest request
     ) {
-        return ResponseEntity.status(HttpStatus.CREATED)
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(adminService.triagePatient(authentication.getName(), request));
     }
 
