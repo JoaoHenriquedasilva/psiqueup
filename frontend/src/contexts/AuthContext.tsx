@@ -33,13 +33,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         name: string,
         email: string,
         password: string,
-        role: 'PSYCHOLOGIST' | 'PATIENT'
+        role: 'PSYCHOLOGIST' | 'PATIENT',
+        cpf?: string
     ): Promise<UserRole> {
         const { data } = await api.post<AuthResponse>('/auth/register', {
             name,
             email,
             password,
             role,
+            ...(cpf ? { cpf } : {}),
         });
         return saveSession(data);
     }
