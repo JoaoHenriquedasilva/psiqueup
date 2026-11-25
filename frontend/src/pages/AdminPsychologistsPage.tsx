@@ -3,7 +3,7 @@ import {
     CheckCircle2,
     Clock,
     ExternalLink,
-    Mail,
+    FileText,
     Send,
     UserCheck,
     UserPlus,
@@ -14,13 +14,14 @@ import {
 import { DashboardShell } from '../components/DashboardShell';
 import { type FeedbackMessage } from '../components/FeedbackBanner';
 import { InitialsAvatar } from '../components/InitialsAvatar';
+import { useCpfField } from '../hooks/useCpfField';
 import { api } from '../services/api';
 import { extractApiErrorMessage } from '../utils/apiError';
 import { ADMIN_NAV_ITEMS } from '../utils/navigation';
 import type {
     AdminPsychologistItem,
     ClinicLinkItem,
-    TherapeuticLink,
+    NeutralActionResponse,
 } from '../types/api';
 
 export function AdminPsychologistsPage() {
@@ -35,7 +36,7 @@ export function AdminPsychologistsPage() {
 
     // Triagem de pacientes
     const [triagePsychologistId, setTriagePsychologistId] = useState<number | ''>('');
-    const [triagePatientEmail, setTriagePatientEmail] = useState('');
+    const triageCpfField = useCpfField();
     const [submittingTriage, setSubmittingTriage] = useState(false);
 
     // Controle de ativação/desativação inline de profissionais
@@ -144,26 +145,31 @@ export function AdminPsychologistsPage() {
         e.preventDefault();
         setFeedback(null);
 
-        const trimmedEmail = triagePatientEmail.trim();
-        if (!triagePsychologistId || !trimmedEmail) {
+        if (!triagePsychologistId) {
             setFeedback({
                 type: 'error',
-                text: 'Selecione um psicólogo e informe o e-mail do paciente.',
+                text: 'Selecione um psicólogo de destino para a triagem.',
             });
+            return;
+        }
+
+        if (!triageCpfField.validateCpf()) {
             return;
         }
 
         setSubmittingTriage(true);
         try {
-            const { data } = await api.post<TherapeuticLink>('/admin/triage', {
+            const { data } = await api.post<NeutralActionResponse>('/admin/triage', {
                 psychologistId: Number(triagePsychologistId),
-                patientEmail: trimmedEmail,
+                cpf: triageCpfField.strippedCpf,
             });
-            setTriagePatientEmail('');
+            triageCpfField.resetCpf();
             setTriagePsychologistId('');
             setFeedback({
-                type: 'success',
-                text: `Indicação enviada: ${data.patientName} vinculado(a) a ${data.psychologistName}.`,
+                type: 'info',
+                text:
+                    data?.message ||
+                    'Encaminhamento processado. Se o CPF estiver cadastrado e elegível, o paciente receberá a solicitação de vínculo.',
             });
             try {
                 const { data: updatedPsychs } = await api.get<AdminPsychologistItem[]>(
@@ -377,7 +383,7 @@ export function AdminPsychologistsPage() {
                                     Triagem de Pacientes
                                 </h2>
                                 <p className="text-xs text-ink-secondary mt-0.5">
-                                    Encaminhe pacientes já cadastrados no PsiqueUp para os psicólogos aprovados do seu consultório.
+                                    Encaminhe pacientes pelo CPF para os psicólogos aprovados. O vínculo será ativado após o consentimento do paciente.
                                 </p>
                             </div>
                         </div>
@@ -390,7 +396,7 @@ export function AdminPsychologistsPage() {
 
                         <form
                             onSubmit={handleTriageSubmit}
-                            className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end"
+                            className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start"
                         >
                             <div className="md:col-span-5">
                                 <label
@@ -425,30 +431,44 @@ export function AdminPsychologistsPage() {
 
                             <div className="md:col-span-5">
                                 <label
-                                    htmlFor="triage-patient-email"
+                                    htmlFor="triage-patient-cpf"
                                     className="block text-xs font-medium text-ink-secondary mb-1.5"
                                 >
-                                    E-mail do paciente
+                                    CPF do paciente
                                 </label>
                                 <div className="relative">
-                                    <Mail className="h-4 w-4 text-ink-secondary absolute left-3.5 top-3" />
+                                    <FileText className="h-4 w-4 text-ink-secondary absolute left-3.5 top-3" />
                                     <input
-                                        id="triage-patient-email"
-                                        type="email"
+                                        id="triage-patient-cpf"
+                                        type="text"
+                                        inputMode="numeric"
                                         required
+                                        maxLength={14}
                                         disabled={
                                             submittingTriage ||
                                             activeApprovedPsychologists.length === 0
                                         }
-                                        value={triagePatientEmail}
-                                        onChange={(e) => setTriagePatientEmail(e.target.value)}
-                                        placeholder="email.paciente@exemplo.com"
-                                        className="w-full pl-10 pr-3.5 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink disabled:opacity-60"
+                                        value={triageCpfField.cpf}
+                                        onChange={(e) =>
+                                            triageCpfField.handleCpfChange(e.target.value)
+                                        }
+                                        onBlur={triageCpfField.handleCpfBlur}
+                                        placeholder="000.000.000-00"
+                                        className={`w-full pl-10 pr-3.5 py-2.5 bg-subsurface border rounded-xl text-sm text-ink tabular-nums placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 transition disabled:opacity-60 ${
+                                            triageCpfField.cpfError
+                                                ? 'border-danger-ink focus:ring-danger-ink/20 focus:border-danger-ink'
+                                                : 'border-border-subtle focus:ring-primary-ink/20 focus:border-primary-ink'
+                                        }`}
                                     />
                                 </div>
+                                {triageCpfField.cpfError && (
+                                    <p className="text-xs text-danger-ink mt-1">
+                                        {triageCpfField.cpfError}
+                                    </p>
+                                )}
                             </div>
 
-                            <div className="md:col-span-2">
+                            <div className="md:col-span-2 md:pt-[22px]">
                                 <button
                                     type="submit"
                                     disabled={

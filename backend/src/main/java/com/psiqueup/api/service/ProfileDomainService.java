@@ -5,12 +5,16 @@ import com.psiqueup.api.domain.entity.PsychologistProfile;
 import com.psiqueup.api.domain.entity.TherapeuticApproach;
 import com.psiqueup.api.domain.entity.User;
 import com.psiqueup.api.domain.enums.UserRole;
+import com.psiqueup.api.dto.profile.PatientProfileResponse;
 import com.psiqueup.api.dto.profile.PsychologistProfileResponse;
+import com.psiqueup.api.dto.profile.UpdatePatientCpfRequest;
 import com.psiqueup.api.dto.profile.UpsertPsychologistProfileRequest;
 import com.psiqueup.api.repository.PatientProfileRepository;
 import com.psiqueup.api.repository.PsychologistProfileRepository;
 import com.psiqueup.api.repository.TherapeuticApproachRepository;
 import com.psiqueup.api.repository.UserRepository;
+import com.psiqueup.api.security.CpfCryptoService;
+import com.psiqueup.api.util.CpfUtils;
 import com.psiqueup.api.util.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,6 +32,7 @@ public class ProfileDomainService {
     private final PsychologistProfileRepository psychologistRepository;
     private final PatientProfileRepository patientRepository;
     private final TherapeuticApproachRepository approachRepository;
+    private final CpfCryptoService cpfCryptoService;
 
     private static final String BRAZILIAN_CRP_REGEX = "^(0[1-9]|1[0-9]|2[0-4])/\\d{4,6}$";
 
@@ -71,16 +76,54 @@ public class ProfileDomainService {
         return PsychologistProfileResponse.fromEntity(profile);
     }
 
+    @Transactional(readOnly = true)
+    public PatientProfileResponse getMyPatientProfile(String email) {
+        User user = getPatientUser(email);
+        PatientProfile profile = patientRepository.findById(user.getId()).orElse(null);
+        return PatientProfileResponse.from(user, profile);
+    }
+
+    @Transactional
+    public PatientProfileResponse updateMyPatientCpf(String email, UpdatePatientCpfRequest request) {
+        User user = getPatientUser(email);
+        PatientProfile profile = patientRepository.findById(user.getId())
+                .orElseGet(() -> PatientProfile.builder().user(user).build());
+
+        if (profile.getCpfHash() != null && !profile.getCpfHash().isBlank()) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "O CPF já está cadastrado neste perfil e não pode ser alterado diretamente."
+            );
+        }
+
+        String normalizedCpf = CpfUtils.normalizeAndValidate(request.cpf());
+        String cpfHash = cpfCryptoService.hashCpf(normalizedCpf);
+        String cpfMasked = CpfUtils.mask(normalizedCpf);
+
+        if (patientRepository.existsByCpfHash(cpfHash)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Este CPF já está cadastrado.");
+        }
+
+        profile.setCpfHash(cpfHash);
+        profile.setCpfMasked(cpfMasked);
+        return PatientProfileResponse.from(user, patientRepository.save(profile));
+    }
+
     @Transactional
     public void ensurePatientProfile(String email) {
-        User user = getUserByEmail(email);
-        if (user.getRole() != UserRole.PATIENT) {
-            throw new AccessDeniedException("Apenas utilizadores com perfil PATIENT podem ativar perfil de paciente.");
-        }
+        User user = getPatientUser(email);
 
         if (!patientRepository.existsById(user.getId())) {
             patientRepository.save(PatientProfile.builder().user(user).build());
         }
+    }
+
+    private User getPatientUser(String email) {
+        User user = getUserByEmail(email);
+        if (user.getRole() != UserRole.PATIENT) {
+            throw new AccessDeniedException("Apenas utilizadores com perfil PATIENT podem gerir o perfil de paciente.");
+        }
+        return user;
     }
 
     private User getPsychologistUser(String email) {

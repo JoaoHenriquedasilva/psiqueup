@@ -1,13 +1,38 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BadgeAlert, UserPlus, Users } from 'lucide-react';
+import { ArrowRight, BadgeAlert, Clock, ShieldX, UserPlus, Users } from 'lucide-react';
 import { DashboardShell } from '../components/DashboardShell';
 import { type FeedbackMessage } from '../components/FeedbackBanner';
 import { InitialsAvatar } from '../components/InitialsAvatar';
+import { useCpfField } from '../hooks/useCpfField';
 import { api } from '../services/api';
 import { extractApiErrorMessage, isApiHttpStatus } from '../utils/apiError';
 import { PSYCHOLOGIST_NAV_ITEMS } from '../utils/navigation';
-import type { PsychologistProfile, TherapeuticLink } from '../types/api';
+import type {
+    LinkStatus,
+    NeutralActionResponse,
+    PsychologistProfile,
+    TherapeuticLink,
+} from '../types/api';
+
+const LINK_STATUS_BADGE: Record<LinkStatus, { label: string; className: string }> = {
+    PENDING: {
+        label: 'Aguardando aceite',
+        className: 'bg-warning-bg text-warning-ink border-warning-border',
+    },
+    ACTIVE: {
+        label: 'Ativo',
+        className: 'bg-success-bg text-success-ink border-success-border',
+    },
+    REJECTED: {
+        label: 'Rejeitado',
+        className: 'bg-danger-bg text-danger-ink border-danger-border',
+    },
+    REVOKED: {
+        label: 'Revogado',
+        className: 'bg-neutral-bg text-neutral-ink border-neutral-border',
+    },
+};
 
 export function PsychologistPatientsPage() {
     const [links, setLinks] = useState<TherapeuticLink[]>([]);
@@ -15,7 +40,7 @@ export function PsychologistPatientsPage() {
     const [loading, setLoading] = useState(true);
     const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
 
-    const [patientEmail, setPatientEmail] = useState('');
+    const cpfField = useCpfField();
     const [linkingPatient, setLinkingPatient] = useState(false);
 
     useEffect(() => {
@@ -71,32 +96,35 @@ export function PsychologistPatientsPage() {
 
     async function handleLinkPatient(e: FormEvent) {
         e.preventDefault();
-        const trimmedEmail = patientEmail.trim();
-        if (!trimmedEmail) {
-            setFeedback({ type: 'error', text: 'Informe o e-mail do paciente.' });
+        setFeedback(null);
+
+        if (!cpfField.validateCpf()) {
             return;
         }
 
         setLinkingPatient(true);
-        setFeedback(null);
         try {
-            const { data: createdLink } = await api.post<TherapeuticLink>('/links', {
-                patientEmail: trimmedEmail,
+            const { data } = await api.post<NeutralActionResponse>('/links', {
+                cpf: cpfField.strippedCpf,
             });
-            setPatientEmail('');
-            setLinks((prev) => [...prev, createdLink]);
-            setFeedback({ type: 'success', text: 'Paciente vinculado com sucesso!' });
+            cpfField.resetCpf();
+            setFeedback({
+                type: 'info',
+                text:
+                    data?.message ||
+                    'Solicitação processada. Se o CPF estiver cadastrado e elegível, o paciente receberá o pedido de consentimento no painel dele.',
+            });
 
             try {
-                const { data } = await api.get<TherapeuticLink[]>('/links');
-                setLinks(data);
+                const { data: updatedLinks } = await api.get<TherapeuticLink[]>('/links');
+                setLinks(updatedLinks);
             } catch {
-                // Mantém o estado já atualizado localmente se a recarga falhar
+                // Mantém a lista atual caso a recarga falhe
             }
         } catch (err: unknown) {
             setFeedback({
                 type: 'error',
-                text: extractApiErrorMessage(err, 'Não foi possível vincular o paciente.'),
+                text: extractApiErrorMessage(err, 'Não foi possível enviar a solicitação de vínculo.'),
             });
         } finally {
             setLinkingPatient(false);
@@ -109,7 +137,7 @@ export function PsychologistPatientsPage() {
             roleBadgeClassName="bg-primary-tint text-primary-tint-ink"
             navItems={PSYCHOLOGIST_NAV_ITEMS}
             pageTitle="Meus Pacientes"
-            pageSubtitle="Vincule pacientes cadastrados pelo e-mail para liberar o agendamento de sessões."
+            pageSubtitle="Envie solicitações de vínculo por CPF. O agendamento é liberado após o aceite do paciente."
             feedback={feedback}
             onCloseFeedback={() => setFeedback(null)}
         >
@@ -143,39 +171,52 @@ export function PsychologistPatientsPage() {
                         </div>
                     )}
 
-                    {/* Formulário de vínculo */}
+                    {/* Formulário de vínculo por CPF */}
                     <section className="bg-surface rounded-2xl border border-border-subtle p-6 shadow-surface">
                         <h2 className="font-display text-lg font-semibold text-ink mb-1">
                             Vincular Novo Paciente
                         </h2>
                         <p className="text-xs text-ink-secondary mb-4">
-                            O paciente precisa já possuir uma conta cadastrada com este e-mail no
-                            PsiqueUp.
+                            Informe o CPF do paciente cadastrado no PsiqueUp para enviar um pedido de
+                            consentimento.
                         </p>
 
                         <form
                             onSubmit={handleLinkPatient}
-                            className="flex flex-col sm:flex-row gap-3"
+                            className="flex flex-col sm:flex-row items-start gap-3"
                         >
-                            <input
-                                id="link-patient-email"
-                                aria-label="E-mail do paciente para vínculo"
-                                type="email"
-                                required
-                                maxLength={150}
-                                disabled={linkingPatient || profileMissing}
-                                value={patientEmail}
-                                onChange={(e) => setPatientEmail(e.target.value)}
-                                placeholder="paciente@email.com"
-                                className="flex-1 px-3.5 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink disabled:opacity-60 disabled:cursor-not-allowed"
-                            />
+                            <div className="w-full flex-1">
+                                <input
+                                    id="link-patient-cpf"
+                                    aria-label="CPF do paciente para vínculo"
+                                    type="text"
+                                    inputMode="numeric"
+                                    required
+                                    maxLength={14}
+                                    disabled={linkingPatient || profileMissing}
+                                    value={cpfField.cpf}
+                                    onChange={(e) => cpfField.handleCpfChange(e.target.value)}
+                                    onBlur={cpfField.handleCpfBlur}
+                                    placeholder="000.000.000-00"
+                                    className={`w-full px-3.5 py-2.5 bg-subsurface border rounded-xl text-sm text-ink tabular-nums placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 transition disabled:opacity-60 disabled:cursor-not-allowed ${
+                                        cpfField.cpfError
+                                            ? 'border-danger-ink focus:ring-danger-ink/20 focus:border-danger-ink'
+                                            : 'border-border-subtle focus:ring-primary-ink/20 focus:border-primary-ink'
+                                    }`}
+                                />
+                                {cpfField.cpfError && (
+                                    <p className="text-xs text-danger-ink mt-1.5">
+                                        {cpfField.cpfError}
+                                    </p>
+                                )}
+                            </div>
                             <button
                                 type="submit"
                                 disabled={linkingPatient || profileMissing}
                                 className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
                             >
                                 <UserPlus className="h-4 w-4" />
-                                {linkingPatient ? 'Vinculando...' : 'Vincular Paciente'}
+                                {linkingPatient ? 'Enviando...' : 'Solicitar Vínculo'}
                             </button>
                         </form>
                         {profileMissing && (
@@ -204,40 +245,90 @@ export function PsychologistPatientsPage() {
                             </p>
                         ) : (
                             <div className="divide-y divide-border-subtle">
-                                {links.map((link) => (
-                                    <div
-                                        key={link.id}
-                                        className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <InitialsAvatar name={link.patientName} />
-                                            <div>
-                                                <p className="text-sm font-semibold text-ink">
-                                                    {link.patientName}
-                                                </p>
-                                                <p className="text-xs text-ink-secondary">
-                                                    {link.patientEmail}
-                                                </p>
-                                                {link.status === 'REJECTED' &&
-                                                    link.rejectionReason && (
+                                {links.map((link) => {
+                                    const badge = LINK_STATUS_BADGE[link.status];
+                                    const hasPatientName = Boolean(link.patientName?.trim());
+                                    const isPending = link.status === 'PENDING';
+                                    const isRejected = link.status === 'REJECTED';
+
+                                    return (
+                                        <div
+                                            key={link.id}
+                                            className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                                        >
+                                            <div className="flex items-start gap-3">
+                                                {hasPatientName ? (
+                                                    <InitialsAvatar name={link.patientName} />
+                                                ) : isPending ? (
+                                                    <div
+                                                        aria-hidden="true"
+                                                        className="h-9 w-9 rounded-full bg-warning-bg text-warning-ink border border-warning-border flex items-center justify-center shrink-0"
+                                                    >
+                                                        <Clock className="h-4 w-4" />
+                                                    </div>
+                                                ) : (
+                                                    <div
+                                                        aria-hidden="true"
+                                                        className={`h-9 w-9 rounded-full border flex items-center justify-center shrink-0 ${
+                                                            isRejected
+                                                                ? 'bg-danger-bg text-danger-ink border-danger-border'
+                                                                : 'bg-neutral-bg text-neutral-ink border-neutral-border'
+                                                        }`}
+                                                    >
+                                                        <ShieldX className="h-4 w-4" />
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    {hasPatientName ? (
+                                                        <p className="text-sm font-semibold text-ink">
+                                                            {link.patientName}
+                                                        </p>
+                                                    ) : (
+                                                        <p className="text-sm font-semibold text-ink">
+                                                            Paciente (
+                                                            <span className="tabular-nums">
+                                                                {link.patientCpfMasked ??
+                                                                    'CPF protegido'}
+                                                            </span>
+                                                            )
+                                                        </p>
+                                                    )}
+
+                                                    {isPending ? (
+                                                        <p className="text-xs text-ink-secondary">
+                                                            Agendamento bloqueado até o
+                                                            consentimento do paciente.
+                                                        </p>
+                                                    ) : link.patientEmail ? (
+                                                        <p className="text-xs text-ink-secondary">
+                                                            {link.patientEmail}
+                                                        </p>
+                                                    ) : isRejected ? (
+                                                        <p className="text-xs text-ink-secondary">
+                                                            Vínculo recusado pelo paciente.
+                                                        </p>
+                                                    ) : link.status === 'REVOKED' ? (
+                                                        <p className="text-xs text-ink-secondary">
+                                                            Vínculo revogado.
+                                                        </p>
+                                                    ) : null}
+
+                                                    {isRejected && link.rejectionReason && (
                                                         <p className="text-xs text-danger-ink mt-1 bg-danger-bg border border-danger-border rounded-lg px-2.5 py-1 inline-block">
                                                             Motivo: {link.rejectionReason}
                                                         </p>
                                                     )}
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <span
-                                            className={`text-xs px-2.5 py-1 rounded-full font-medium border self-start sm:self-center ${
-                                                link.status === 'ACTIVE'
-                                                    ? 'bg-success-bg text-success-ink border-success-border'
-                                                    : 'bg-danger-bg text-danger-ink border-danger-border'
-                                            }`}
-                                        >
-                                            {link.status === 'ACTIVE' ? 'Ativo' : 'Rejeitado'}
-                                        </span>
-                                    </div>
-                                ))}
+                                            <span
+                                                className={`text-xs px-2.5 py-1 rounded-full font-medium border self-start sm:self-center ${badge.className}`}
+                                            >
+                                                {badge.label}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </section>

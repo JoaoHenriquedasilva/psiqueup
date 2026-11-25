@@ -1,6 +1,7 @@
 package com.psiqueup.api.service;
 
 import com.psiqueup.api.domain.entity.Clinic;
+import com.psiqueup.api.domain.entity.PatientProfile;
 import com.psiqueup.api.domain.entity.User;
 import com.psiqueup.api.domain.enums.UserRole;
 import com.psiqueup.api.dto.auth.AuthResponse;
@@ -8,10 +9,13 @@ import com.psiqueup.api.dto.auth.LoginRequest;
 import com.psiqueup.api.dto.auth.RegisterClinicRequest;
 import com.psiqueup.api.dto.auth.RegisterRequest;
 import com.psiqueup.api.repository.ClinicRepository;
+import com.psiqueup.api.repository.PatientProfileRepository;
 import com.psiqueup.api.repository.UserRepository;
+import com.psiqueup.api.security.CpfCryptoService;
 import com.psiqueup.api.security.JwtService;
 import com.psiqueup.api.security.UserPrincipal;
 import com.psiqueup.api.util.CnpjUtils;
+import com.psiqueup.api.util.CpfUtils;
 import com.psiqueup.api.util.EmailNormalizer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -30,6 +34,8 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
+    private final PatientProfileRepository patientProfileRepository;
+    private final CpfCryptoService cpfCryptoService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
@@ -51,6 +57,20 @@ public class AuthService {
             throw new IllegalArgumentException("O nome deve ter entre 3 e 120 caracteres.");
         }
 
+        String cpfHash = null;
+        String cpfMasked = null;
+        if (resolvedRole == UserRole.PATIENT) {
+            if (request.cpf() == null || request.cpf().isBlank()) {
+                throw new IllegalArgumentException("O CPF é obrigatório para o cadastro de pacientes.");
+            }
+            String normalizedCpf = CpfUtils.normalizeAndValidate(request.cpf());
+            cpfHash = cpfCryptoService.hashCpf(normalizedCpf);
+            cpfMasked = CpfUtils.mask(normalizedCpf);
+            if (patientProfileRepository.existsByCpfHash(cpfHash)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Este CPF já está cadastrado.");
+            }
+        }
+
         User user = User.builder()
                 .name(trimmedName)
                 .email(normalizedEmail)
@@ -60,6 +80,15 @@ public class AuthService {
                 .build();
 
         User savedUser = userRepository.save(user);
+
+        if (resolvedRole == UserRole.PATIENT) {
+            patientProfileRepository.save(PatientProfile.builder()
+                    .user(savedUser)
+                    .cpfHash(cpfHash)
+                    .cpfMasked(cpfMasked)
+                    .build());
+        }
+
         String token = jwtService.generateToken(new UserPrincipal(savedUser));
 
         return new AuthResponse(

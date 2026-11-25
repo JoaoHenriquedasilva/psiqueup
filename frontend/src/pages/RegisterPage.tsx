@@ -4,6 +4,7 @@ import { Building2, FileText, HeartHandshake, Lock, Mail, Stethoscope, User } fr
 import { AuthLayout } from '../components/AuthLayout';
 import { useAuth } from '../contexts/useAuth';
 import { useCnpjField } from '../hooks/useCnpjField';
+import { useCpfField } from '../hooks/useCpfField';
 import { extractApiErrorMessage } from '../utils/apiError';
 import { getHomeRouteByRole } from '../utils/authRoutes';
 
@@ -16,6 +17,7 @@ export function RegisterPage() {
     const [profileMode, setProfileMode] = useState<RegisterProfileMode>('PATIENT');
     const [clinicName, setClinicName] = useState('');
     const cnpjField = useCnpjField();
+    const cpfField = useCpfField();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -23,12 +25,16 @@ export function RegisterPage() {
     const [loading, setLoading] = useState(false);
 
     const isClinicMode = profileMode === 'CLINIC';
+    const isPatientMode = profileMode === 'PATIENT';
 
     function handleSelectMode(nextMode: RegisterProfileMode) {
         setProfileMode(nextMode);
         setError('');
         if (nextMode !== 'CLINIC') {
             cnpjField.setError('');
+        }
+        if (nextMode !== 'PATIENT') {
+            cpfField.setCpfError('');
         }
     }
 
@@ -55,6 +61,10 @@ export function RegisterPage() {
             return;
         }
 
+        if (isPatientMode && !cpfField.validateCpf()) {
+            return;
+        }
+
         if (!trimmedEmail) {
             setError('O e-mail é obrigatório.');
             return;
@@ -70,7 +80,13 @@ export function RegisterPage() {
                       adminEmail: trimmedEmail,
                       password,
                   })
-                : await register(trimmedName, trimmedEmail, password, profileMode);
+                : await register(
+                      trimmedName,
+                      trimmedEmail,
+                      password,
+                      profileMode,
+                      isPatientMode ? cpfField.strippedCpf : undefined
+                  );
             navigate(getHomeRouteByRole(createdRole), { replace: true });
         } catch (err: unknown) {
             setError(extractApiErrorMessage(err, 'Não foi possível concluir o cadastro.'));
@@ -255,11 +271,57 @@ export function RegisterPage() {
                             maxLength={120}
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            placeholder={isClinicMode ? 'Ex.: Dr. Carlos Mendes' : 'Ex.: Dra. Ana Silva'}
+                            placeholder={
+                                isClinicMode
+                                    ? 'Ex.: Dr. Carlos Mendes'
+                                    : isPatientMode
+                                      ? 'Ex.: Maria Oliveira'
+                                      : 'Ex.: Dra. Ana Silva'
+                            }
                             className="w-full pl-10 pr-3 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink transition"
                         />
                     </div>
                 </div>
+
+                {isPatientMode && (
+                    <div>
+                        <label
+                            htmlFor="register-cpf"
+                            className="block text-sm font-medium text-ink mb-1.5"
+                        >
+                            CPF
+                        </label>
+                        <div className="relative">
+                            <FileText className="h-4 w-4 text-ink-secondary absolute left-3.5 top-3" />
+                            <input
+                                id="register-cpf"
+                                type="text"
+                                inputMode="numeric"
+                                required
+                                maxLength={14}
+                                value={cpfField.cpf}
+                                onChange={(e) => cpfField.handleCpfChange(e.target.value)}
+                                onBlur={cpfField.handleCpfBlur}
+                                placeholder="000.000.000-00"
+                                className={`w-full pl-10 pr-3 py-2.5 bg-subsurface border rounded-xl text-sm text-ink tabular-nums placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 transition ${
+                                    cpfField.cpfError
+                                        ? 'border-danger-ink focus:ring-danger-ink/20 focus:border-danger-ink'
+                                        : 'border-border-subtle focus:ring-primary-ink/20 focus:border-primary-ink'
+                                }`}
+                            />
+                        </div>
+                        {cpfField.cpfError && (
+                            <p className="text-xs text-danger-ink mt-1">{cpfField.cpfError}</p>
+                        )}
+                        <p className="text-[11px] text-ink-secondary mt-1.5 flex items-start gap-1.5 leading-snug">
+                            <Lock className="h-3.5 w-3.5 shrink-0 mt-0.5 text-ink-secondary" />
+                            <span>
+                                Protegido por criptografia (hash). Usado apenas para vínculos
+                                clínicos autorizados por você, em sigilo (LGPD).
+                            </span>
+                        </p>
+                    </div>
+                )}
 
                 <div>
                     <label

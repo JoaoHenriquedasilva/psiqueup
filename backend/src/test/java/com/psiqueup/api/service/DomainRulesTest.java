@@ -1,12 +1,14 @@
 package com.psiqueup.api.service;
 
 import com.psiqueup.api.domain.entity.User;
+import com.psiqueup.api.domain.enums.LinkStatus;
 import com.psiqueup.api.domain.enums.PublicUserRole;
 import com.psiqueup.api.domain.enums.SessionStatus;
 import com.psiqueup.api.dto.auth.LoginRequest;
 import com.psiqueup.api.dto.auth.RegisterRequest;
 import com.psiqueup.api.dto.link.CreateLinkRequest;
 import com.psiqueup.api.dto.link.LinkResponse;
+import com.psiqueup.api.dto.link.NeutralActionResponse;
 import com.psiqueup.api.dto.link.RejectLinkRequest;
 import com.psiqueup.api.dto.profile.UpsertPsychologistProfileRequest;
 import com.psiqueup.api.dto.session.CreateSessionRequest;
@@ -52,6 +54,8 @@ class DomainRulesTest {
     @Autowired
     private SessionRepository sessionRepository;
 
+    private static final java.util.concurrent.atomic.AtomicInteger CPF_SEQ = new java.util.concurrent.atomic.AtomicInteger(100000001);
+
     private String uniqueSuffix() {
         return UUID.randomUUID().toString().substring(0, 8);
     }
@@ -61,17 +65,35 @@ class DomainRulesTest {
         return "06/" + number;
     }
 
+    private String uniqueCpf() {
+        String base = String.format("%09d", CPF_SEQ.getAndIncrement());
+        int d1 = calcCpfDigit(base, 10);
+        int d2 = calcCpfDigit(base + d1, 11);
+        return base + d1 + d2;
+    }
+
+    private int calcCpfDigit(String digits, int initialWeight) {
+        int sum = 0;
+        for (int i = 0; i < digits.length(); i++) {
+            sum += Character.getNumericValue(digits.charAt(i)) * (initialWeight - i);
+        }
+        int rem = sum % 11;
+        return rem < 2 ? 0 : 11 - rem;
+    }
+
     @Test
     void shouldNormalizeEmailsOnRegisterLoginAndLink() {
         String suffix = uniqueSuffix();
         String rawPsychEmail = "  Dra.Psicologa." + suffix + "@PsiqueUp.Test  ";
         String rawPatientEmail = "  Paciente.Teste." + suffix + "@PsiqueUp.Test ";
+        String patientCpf = uniqueCpf();
 
         var psychAuth = authService.register(new RegisterRequest(
                 "  Dra. Psicologa  ",
                 rawPsychEmail,
                 "secret123",
-                PublicUserRole.PSYCHOLOGIST
+                PublicUserRole.PSYCHOLOGIST,
+                null
         ));
         assertThat(psychAuth.email()).isEqualTo("dra.psicologa." + suffix + "@psiqueup.test");
         assertThat(psychAuth.name()).isEqualTo("Dra. Psicologa");
@@ -80,7 +102,8 @@ class DomainRulesTest {
                 "Carlos Paciente",
                 rawPatientEmail,
                 "secret123",
-                PublicUserRole.PATIENT
+                PublicUserRole.PATIENT,
+                patientCpf
         ));
         assertThat(patientAuth.email()).isEqualTo("paciente.teste." + suffix + "@psiqueup.test");
 
@@ -88,17 +111,26 @@ class DomainRulesTest {
         var loginRes = authService.login(new LoginRequest("  PACIENTE.TESTE." + suffix + "@psiqueup.test ", "secret123"));
         assertThat(loginRes.email()).isEqualTo(patientAuth.email());
 
-        // Configurar CRP e vincular usando e-mail com caixa mista
+        // Configurar CRP e solicitar vínculo via CPF formatado (e-mail do psicólogo com caixa mista)
         profileDomainService.upsertPsychologistProfile(
                 psychAuth.email(),
                 new UpsertPsychologistProfileRequest(uniqueBrazilianCrp(), 1L, "Bio teste")
         );
 
-        LinkResponse link = linkService.createLink(
+        String formattedCpf = patientCpf.substring(0, 3) + "." + patientCpf.substring(3, 6) + "."
+                + patientCpf.substring(6, 9) + "-" + patientCpf.substring(9, 11);
+        NeutralActionResponse neutral = linkService.createLink(
                 "DRA.PSICOLOGA." + suffix + "@psiqueup.test",
-                new CreateLinkRequest("  PACIENTE.TESTE." + suffix + "@PSIQUEUP.TEST ")
+                new CreateLinkRequest(formattedCpf)
         );
-        assertThat(link.patientEmail()).isEqualTo(patientAuth.email());
+        assertThat(neutral.message()).isEqualTo(NeutralActionResponse.LINK_REQUEST_ACCEPTED_MESSAGE);
+
+        LinkResponse pendingForPatient = linkService.listMyLinks(patientAuth.email()).getFirst();
+        assertThat(pendingForPatient.status()).isEqualTo(LinkStatus.PENDING);
+
+        LinkResponse accepted = linkService.acceptLink(patientAuth.email(), pendingForPatient.id());
+        assertThat(accepted.status()).isEqualTo(LinkStatus.ACTIVE);
+        assertThat(accepted.patientEmail()).isEqualTo(patientAuth.email());
     }
 
     @Test
@@ -106,15 +138,18 @@ class DomainRulesTest {
         String suffix = uniqueSuffix();
         String psychEmail = "psych." + suffix + "@psiqueup.test";
         String patientEmail = "patient." + suffix + "@psiqueup.test";
+        String patientCpf = uniqueCpf();
 
-        authService.register(new RegisterRequest("Psicologo", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
-        authService.register(new RegisterRequest("Paciente", patientEmail, "secret123", PublicUserRole.PATIENT));
+        authService.register(new RegisterRequest("Psicologo", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        authService.register(new RegisterRequest("Paciente", patientEmail, "secret123", PublicUserRole.PATIENT, patientCpf));
 
         profileDomainService.upsertPsychologistProfile(
                 psychEmail,
                 new UpsertPsychologistProfileRequest(uniqueBrazilianCrp(), 1L, null)
         );
-        LinkResponse link = linkService.createLink(psychEmail, new CreateLinkRequest(patientEmail));
+        linkService.createLink(psychEmail, new CreateLinkRequest(patientCpf));
+        LinkResponse pendingLink = linkService.listMyLinks(patientEmail).getFirst();
+        LinkResponse link = linkService.acceptLink(patientEmail, pendingLink.id());
 
         OffsetDateTime start = OffsetDateTime.now().plusHours(3);
         OffsetDateTime end = start.plusHours(1);
@@ -188,19 +223,22 @@ class DomainRulesTest {
         String suffix = uniqueSuffix();
         String psychEmail = "psych.rej." + suffix + "@psiqueup.test";
         String patientEmail = "patient.rej." + suffix + "@psiqueup.test";
+        String patientCpf = uniqueCpf();
 
-        authService.register(new RegisterRequest("Psicologo", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST));
-        authService.register(new RegisterRequest("Paciente", patientEmail, "secret123", PublicUserRole.PATIENT));
+        authService.register(new RegisterRequest("Psicologo", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        authService.register(new RegisterRequest("Paciente", patientEmail, "secret123", PublicUserRole.PATIENT, patientCpf));
 
         // Paciente tentando criar vínculo deve receber 403 AccessDeniedException
-        assertThatThrownBy(() -> linkService.createLink(patientEmail, new CreateLinkRequest(psychEmail)))
+        assertThatThrownBy(() -> linkService.createLink(patientEmail, new CreateLinkRequest(patientCpf)))
                 .isInstanceOf(AccessDeniedException.class);
 
         profileDomainService.upsertPsychologistProfile(
                 psychEmail,
                 new UpsertPsychologistProfileRequest(uniqueBrazilianCrp(), 1L, null)
         );
-        LinkResponse link = linkService.createLink(psychEmail, new CreateLinkRequest(patientEmail));
+        linkService.createLink(psychEmail, new CreateLinkRequest(patientCpf));
+        LinkResponse pendingLink = linkService.listMyLinks(patientEmail).getFirst();
+        LinkResponse link = linkService.acceptLink(patientEmail, pendingLink.id());
 
         OffsetDateTime start = OffsetDateTime.now().plusDays(1);
         SessionResponse scheduled = sessionService.scheduleSession(
