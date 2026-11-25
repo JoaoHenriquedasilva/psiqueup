@@ -1,9 +1,13 @@
 package com.psiqueup.api.service;
 
+import com.psiqueup.api.domain.entity.Clinic;
+import com.psiqueup.api.domain.entity.ClinicPsychologist;
 import com.psiqueup.api.domain.entity.PatientProfile;
+import com.psiqueup.api.domain.entity.PatientPsychologistLink;
 import com.psiqueup.api.domain.entity.PsychologistProfile;
 import com.psiqueup.api.domain.entity.Session;
 import com.psiqueup.api.domain.entity.User;
+import com.psiqueup.api.domain.enums.ClinicPsychologistStatus;
 import com.psiqueup.api.domain.enums.LinkStatus;
 import com.psiqueup.api.domain.enums.SessionStatus;
 import com.psiqueup.api.domain.enums.UserRole;
@@ -31,6 +35,7 @@ public class SessionService {
     private final PsychologistProfileRepository psychologistRepository;
     private final PatientProfileRepository patientRepository;
     private final PatientPsychologistLinkRepository linkRepository;
+    private final ClinicPsychologistRepository clinicPsychologistRepository;
     private final UserRepository userRepository;
 
     @Transactional
@@ -54,14 +59,21 @@ public class SessionService {
             throw new IllegalArgumentException("Não é possível agendar sessão para um paciente com conta inativa.");
         }
 
-        boolean hasActiveLink = linkRepository.existsByPsychologistUserIdAndPatientUserIdAndStatus(
-                psychologist.getUserId(),
-                patient.getUserId(),
-                LinkStatus.ACTIVE
-        );
+        PatientPsychologistLink activeLink = linkRepository
+                .findByPsychologistUserIdAndPatientUserId(psychologist.getUserId(), patient.getUserId())
+                .filter(link -> link.getStatus() == LinkStatus.ACTIVE)
+                .orElseThrow(() -> new IllegalArgumentException("Não existe vínculo ativo entre você e este paciente."));
 
-        if (!hasActiveLink) {
-            throw new IllegalArgumentException("Não existe vínculo ativo entre você e este paciente.");
+        Clinic sessionClinic = activeLink.getClinic();
+        if (sessionClinic == null) {
+            sessionClinic = clinicPsychologistRepository
+                    .findFirstByPsychologistUserIdAndStatus(psychologist.getUserId(), ClinicPsychologistStatus.APPROVED)
+                    .map(ClinicPsychologist::getClinic)
+                    .orElse(null);
+            if (sessionClinic != null) {
+                activeLink.setClinic(sessionClinic);
+                linkRepository.save(activeLink);
+            }
         }
 
         boolean hasConflict = sessionRepository.existsConflictingSession(
@@ -82,6 +94,7 @@ public class SessionService {
         Session session = Session.builder()
                 .psychologist(psychologist)
                 .patient(patient)
+                .clinic(sessionClinic)
                 .startTime(request.startTime())
                 .endTime(request.endTime())
                 .status(SessionStatus.SCHEDULED)
