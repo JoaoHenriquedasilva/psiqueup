@@ -29,6 +29,10 @@ public class Session {
     @JoinColumn(name = "patient_id", nullable = false)
     private PatientProfile patient;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "clinic_id")
+    private Clinic clinic;
+
     @Column(name = "start_time", nullable = false)
     private OffsetDateTime startTime;
 

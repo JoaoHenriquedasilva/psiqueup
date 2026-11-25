@@ -29,6 +29,10 @@ public class PatientPsychologistLink {
     @JoinColumn(name = "patient_id", nullable = false)
     private PatientProfile patient;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "clinic_id")
+    private Clinic clinic;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
