@@ -2,6 +2,7 @@ package com.psiqueup.api.controller;
 
 import com.psiqueup.api.dto.auth.AuthResponse;
 import com.psiqueup.api.dto.auth.LoginRequest;
+import com.psiqueup.api.dto.auth.RegisterClinicRequest;
 import com.psiqueup.api.dto.auth.RegisterRequest;
 import com.psiqueup.api.service.AuthService;
 import jakarta.validation.Valid;
@@ -23,6 +24,11 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
+    }
+
+    @PostMapping("/register-clinic")
+    public ResponseEntity<AuthResponse> registerClinic(@Valid @RequestBody RegisterClinicRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.registerClinic(request));
     }
 
     @PostMapping("/login")

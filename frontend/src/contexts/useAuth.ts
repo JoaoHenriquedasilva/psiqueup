@@ -2,6 +2,14 @@ import { createContext, useContext } from 'react';
 import type { UserRole } from '../types/api';
 import type { StoredUser } from '../utils/authStorage';
 
+export interface RegisterClinicPayload {
+    clinicName: string;
+    cnpj: string;
+    adminName: string;
+    adminEmail: string;
+    password: string;
+}
+
 export interface AuthContextData {
     user: StoredUser | null;
     isAuthenticated: boolean;
@@ -12,6 +20,7 @@ export interface AuthContextData {
         password: string,
         role: 'PSYCHOLOGIST' | 'PATIENT'
     ) => Promise<UserRole>;
+    registerClinic: (payload: RegisterClinicPayload) => Promise<UserRole>;
     logout: () => void;
 }
 

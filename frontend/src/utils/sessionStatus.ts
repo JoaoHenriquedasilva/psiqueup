@@ -6,16 +6,16 @@ export interface SessionStatusBadge {
 }
 
 export const SESSION_STATUS_LABELS: Record<SessionStatus, SessionStatusBadge> = {
-    SCHEDULED: { label: 'Agendada', color: 'bg-[#EEF3F7] text-[#2E4A63] border-[#D4E0EB]' },
-    COMPLETED: { label: 'Realizada', color: 'bg-[#E8F4EE] text-[#1B5E3F] border-[#C6E3D3]' },
-    CANCELED: { label: 'Cancelada', color: 'bg-[#F1F3F2] text-[#526064] border-[#DCE1DF]' },
-    NO_SHOW: { label: 'Falta registrada', color: 'bg-[#FDF5E6] text-[#8C5311] border-[#F3DFB6]' },
-    DISPUTED: { label: 'Em contestação', color: 'bg-[#FDF0EF] text-[#9E2A2B] border-[#F3C9C8]' },
+    SCHEDULED: { label: 'Agendada', color: 'bg-slate-inst-tint text-slate-inst-ink border-slate-inst-border' },
+    COMPLETED: { label: 'Realizada', color: 'bg-success-bg text-success-ink border-success-border' },
+    CANCELED: { label: 'Cancelada', color: 'bg-neutral-bg text-neutral-ink border-neutral-border' },
+    NO_SHOW: { label: 'Falta registrada', color: 'bg-warning-bg text-warning-ink border-warning-border' },
+    DISPUTED: { label: 'Em contestação', color: 'bg-danger-bg text-danger-ink border-danger-border' },
 };
 
 const DEFAULT_BADGE: SessionStatusBadge = {
     label: 'Indefinido',
-    color: 'bg-slate-100 text-slate-600 border-slate-200',
+    color: 'bg-neutral-bg text-neutral-ink border-neutral-border',
 };
 
 /** Retorna o rótulo e as classes visuais de um status de sessão com fallback seguro. */

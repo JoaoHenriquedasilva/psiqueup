@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Brain, CalendarCheck, HeartHandshake, ShieldCheck } from 'lucide-react';
+import { ThemeToggle } from './ThemeToggle';
 
 interface AuthLayoutProps {
     title: string;
@@ -35,9 +36,9 @@ const VALUE_PILLARS = [
  */
 export function AuthLayout({ title, subtitle, error, footer, children }: AuthLayoutProps) {
     return (
-        <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 bg-[#F6F7F4]">
+        <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 bg-canvas">
             {/* Painel Institucional Esquerdo (5 colunas em lg+) */}
-            <aside className="hidden lg:flex lg:col-span-5 flex-col justify-between bg-gradient-to-br from-[#1E6B63] to-[#154C46] text-white p-10 xl:p-12">
+            <aside className="hidden lg:flex lg:col-span-5 flex-col justify-between bg-gradient-to-br from-[#1E6B63] to-[#154C46] dark:from-[#103834] dark:to-[#0A2421] text-white p-10 xl:p-12">
                 <div>
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center">
@@ -84,20 +85,24 @@ export function AuthLayout({ title, subtitle, error, footer, children }: AuthLay
             </aside>
 
             {/* Área de Formulário Direita (7 colunas em lg+) */}
-            <main className="lg:col-span-7 flex items-center justify-center px-4 py-10 sm:px-8">
-                <div className="w-full max-w-md bg-white rounded-2xl shadow-surface border border-[#E2E6E1] p-7 sm:p-8">
+            <main className="lg:col-span-7 relative flex items-center justify-center px-4 py-12 sm:px-8">
+                <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+                    <ThemeToggle variant="icon" />
+                </div>
+
+                <div className="w-full max-w-md bg-surface rounded-2xl shadow-surface border border-border-subtle p-7 sm:p-8">
                     <div className="flex flex-col items-center text-center mb-6">
-                        <div className="h-12 w-12 rounded-xl bg-[#E8F3F1] text-[#1E6B63] border border-[#C9E2DD] flex items-center justify-center mb-3 lg:hidden">
+                        <div className="h-12 w-12 rounded-xl bg-primary-tint text-primary-ink border border-primary-tint-border flex items-center justify-center mb-3 lg:hidden">
                             <Brain className="h-6 w-6" />
                         </div>
-                        <h1 className="font-display text-2xl font-bold text-[#132226]">{title}</h1>
-                        <p className="text-sm text-[#4A5D61] mt-1">{subtitle}</p>
+                        <h1 className="font-display text-2xl font-bold text-ink">{title}</h1>
+                        <p className="text-sm text-ink-secondary mt-1">{subtitle}</p>
                     </div>
 
                     {error && (
                         <div
                             role="alert"
-                            className="mb-5 rounded-xl bg-[#FDF0EF] border border-[#F3C9C8] border-l-4 border-l-[#9E2A2B] px-4 py-3 text-sm text-[#9E2A2B]"
+                            className="mb-5 rounded-xl bg-danger-bg border border-danger-border border-l-4 border-l-danger-ink px-4 py-3 text-sm text-danger-ink"
                         >
                             {error}
                         </div>
@@ -105,7 +110,7 @@ export function AuthLayout({ title, subtitle, error, footer, children }: AuthLay
 
                     {children}
 
-                    <div className="mt-6 pt-5 border-t border-[#E2E6E1] text-center text-sm text-[#4A5D61]">
+                    <div className="mt-6 pt-5 border-t border-border-subtle text-center text-sm text-ink-secondary">
                         {footer}
                     </div>
                 </div>

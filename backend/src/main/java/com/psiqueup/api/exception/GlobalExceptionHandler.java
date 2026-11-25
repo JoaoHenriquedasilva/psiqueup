@@ -133,7 +133,7 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         String message = ex instanceof UsernameNotFoundException
-                ? ex.getMessage()
+                ? "Usuário não encontrado."
                 : "Recurso ou rota não encontrada.";
         return buildErrorResponse(HttpStatus.NOT_FOUND, message, request);
     }
@@ -155,9 +155,16 @@ public class GlobalExceptionHandler {
             AccessDeniedException ex,
             HttpServletRequest request
     ) {
+        String message = ex.getMessage();
+        if (message == null
+                || message.isBlank()
+                || "Access Denied".equalsIgnoreCase(message)
+                || "Forbidden".equalsIgnoreCase(message)) {
+            message = "Você não tem permissão para acessar este recurso.";
+        }
         return buildErrorResponse(
                 HttpStatus.FORBIDDEN,
-                "Você não tem permissão para acessar este recurso.",
+                message,
                 request
         );
     }

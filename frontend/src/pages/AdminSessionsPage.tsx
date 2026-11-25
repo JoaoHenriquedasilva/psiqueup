@@ -32,10 +32,9 @@ function parseFilterFromParams(param: string | null): SessionFilter {
 
 export function AdminSessionsPage() {
     const [searchParams, setSearchParams] = useSearchParams();
-    const initialFilter = parseFilterFromParams(searchParams.get('status'));
+    const statusFilter = parseFilterFromParams(searchParams.get('status'));
 
     const [sessions, setSessions] = useState<SessionItem[]>([]);
-    const [statusFilter, setStatusFilter] = useState<SessionFilter>(initialFilter);
     const [loading, setLoading] = useState(true);
     const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
     const [resolvingSessionId, setResolvingSessionId] = useState<number | null>(null);
@@ -49,7 +48,7 @@ export function AdminSessionsPage() {
     useEffect(() => {
         let cancelled = false;
 
-        fetchAdminSessions(initialFilter)
+        fetchAdminSessions(statusFilter)
             .then((data) => {
                 if (!cancelled) {
                     setSessions(data);
@@ -72,25 +71,14 @@ export function AdminSessionsPage() {
         return () => {
             cancelled = true;
         };
-    }, [initialFilter]);
+    }, [statusFilter]);
 
-    async function handleFilterChange(nextFilter: SessionFilter) {
-        setStatusFilter(nextFilter);
+    function handleFilterChange(nextFilter: SessionFilter) {
         setFeedback(null);
         if (nextFilter === 'ALL') {
             setSearchParams({});
         } else {
             setSearchParams({ status: nextFilter });
-        }
-
-        try {
-            const data = await fetchAdminSessions(nextFilter);
-            setSessions(data);
-        } catch (err: unknown) {
-            setFeedback({
-                type: 'error',
-                text: extractApiErrorMessage(err, 'Erro ao filtrar sessões da clínica.'),
-            });
         }
     }
 
@@ -124,18 +112,18 @@ export function AdminSessionsPage() {
     return (
         <DashboardShell
             roleBadgeLabel="Administração"
-            roleBadgeClassName="bg-[#FDF5E6] text-[#8C5311]"
+            roleBadgeClassName="bg-warning-bg text-warning-ink"
             navItems={ADMIN_NAV_ITEMS}
             pageTitle="Auditoria de Sessões"
             pageSubtitle="Acompanhe todas as sessões da clínica e resolva contestações abertas pelos pacientes."
             feedback={feedback}
             onCloseFeedback={() => setFeedback(null)}
         >
-            <section className="bg-white rounded-2xl border border-[#E2E6E1] p-6 shadow-surface space-y-5">
+            <section className="bg-surface rounded-2xl border border-border-subtle p-6 shadow-surface space-y-5">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
-                        <Calendar className="h-5 w-5 text-[#1E6B63]" />
-                        <h2 className="font-display text-lg font-semibold text-[#132226]">
+                        <Calendar className="h-5 w-5 text-primary-ink" />
+                        <h2 className="font-display text-lg font-semibold text-ink">
                             Registros da Clínica
                         </h2>
                     </div>
@@ -148,8 +136,8 @@ export function AdminSessionsPage() {
                                 onClick={() => handleFilterChange(filter.value)}
                                 className={`px-3 py-1.5 text-xs font-medium rounded-xl border transition cursor-pointer ${
                                     statusFilter === filter.value
-                                        ? 'bg-[#1E6B63] text-white border-[#1E6B63]'
-                                        : 'bg-[#F9FAF8] text-[#4A5D61] border-[#E2E6E1] hover:bg-[#F0F2ED]'
+                                        ? 'bg-primary text-white border-primary'
+                                        : 'bg-subsurface text-ink-secondary border-border-subtle hover:bg-subsurface-muted'
                                 }`}
                             >
                                 {filter.label}
@@ -159,15 +147,15 @@ export function AdminSessionsPage() {
                 </div>
 
                 {loading ? (
-                    <p className="text-sm text-[#4A5D61] text-center py-8">
+                    <p className="text-sm text-ink-secondary text-center py-8">
                         Carregando sessões...
                     </p>
                 ) : sessions.length === 0 ? (
-                    <p className="text-sm text-[#4A5D61] text-center py-8">
+                    <p className="text-sm text-ink-secondary text-center py-8">
                         Nenhuma sessão encontrada para o filtro selecionado.
                     </p>
                 ) : (
-                    <div className="divide-y divide-[#E2E6E1]">
+                    <div className="divide-y divide-border-subtle">
                         {sessions.map((session) => {
                             const badge = getSessionStatusBadge(session.status);
                             const isResolving = resolvingSessionId === session.id;
@@ -178,16 +166,16 @@ export function AdminSessionsPage() {
                                     className="py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3"
                                 >
                                     <div className="flex items-start gap-3">
-                                        <div className="p-2 rounded-xl bg-[#F0F2ED] text-[#4A5D61] mt-0.5">
+                                        <div className="p-2 rounded-xl bg-subsurface-muted text-ink-secondary mt-0.5">
                                             <Clock className="h-4 w-4" />
                                         </div>
                                         <div>
-                                            <p className="text-sm font-semibold text-[#132226]">
+                                            <p className="text-sm font-semibold text-ink">
                                                 {session.psychologistName}{' '}
-                                                <span className="text-[#4A5D61] font-normal">→</span>{' '}
+                                                <span className="text-ink-secondary font-normal">→</span>{' '}
                                                 {session.patientName}
                                             </p>
-                                            <p className="text-xs text-[#4A5D61] mt-0.5 tabular-nums">
+                                            <p className="text-xs text-ink-secondary mt-0.5 tabular-nums">
                                                 {formatSessionDateTime(
                                                     session.startTime,
                                                     session.endTime
@@ -214,7 +202,7 @@ export function AdminSessionsPage() {
                                                             'COMPLETED'
                                                         )
                                                     }
-                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#1B5E3F] bg-[#E8F4EE] hover:bg-[#D5ECDF] rounded-lg border border-[#C6E3D3] cursor-pointer disabled:opacity-60 transition"
+                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-success-ink bg-success-bg hover:opacity-90 rounded-lg border border-success-border cursor-pointer disabled:opacity-60 transition"
                                                 >
                                                     <CheckCircle2 className="h-3.5 w-3.5" />
                                                     Confirmar Realizada
@@ -225,7 +213,7 @@ export function AdminSessionsPage() {
                                                     onClick={() =>
                                                         handleResolveSession(session.id, 'NO_SHOW')
                                                     }
-                                                    className="px-2.5 py-1 text-xs font-medium text-[#8C5311] bg-[#FDF5E6] hover:bg-[#FAE9C8] rounded-lg border border-[#F3DFB6] cursor-pointer disabled:opacity-60 transition"
+                                                    className="px-2.5 py-1 text-xs font-medium text-warning-ink bg-warning-bg hover:opacity-90 rounded-lg border border-warning-border cursor-pointer disabled:opacity-60 transition"
                                                 >
                                                     Registrar Falta
                                                 </button>
@@ -235,7 +223,7 @@ export function AdminSessionsPage() {
                                                     onClick={() =>
                                                         handleResolveSession(session.id, 'CANCELED')
                                                     }
-                                                    className="px-2.5 py-1 text-xs font-medium text-[#526064] bg-[#F9FAF8] hover:bg-[#F0F2ED] rounded-lg border border-[#E2E6E1] cursor-pointer disabled:opacity-60 transition"
+                                                    className="px-2.5 py-1 text-xs font-medium text-neutral-ink bg-subsurface hover:bg-subsurface-muted rounded-lg border border-border-subtle cursor-pointer disabled:opacity-60 transition"
                                                 >
                                                     Cancelar Sessão
                                                 </button>

@@ -4,6 +4,7 @@ import {
     AlertCircle,
     ArrowRight,
     BadgeAlert,
+    Building2,
     Calendar,
     CheckCircle2,
     Clock,
@@ -14,6 +15,7 @@ import { DashboardShell } from '../components/DashboardShell';
 import { type FeedbackMessage } from '../components/FeedbackBanner';
 import { api } from '../services/api';
 import { extractApiErrorMessage, isApiHttpStatus } from '../utils/apiError';
+import { getClinicLinkBadge, resolvePrimaryClinicLink } from '../utils/clinicLink';
 import {
     formatSessionDateTime,
     getTodayDateInputValue,
@@ -22,6 +24,7 @@ import {
 import { PSYCHOLOGIST_NAV_ITEMS } from '../utils/navigation';
 import { getSessionStatusBadge } from '../utils/sessionStatus';
 import type {
+    ClinicLinkItem,
     PsychologistProfile,
     SessionItem,
     SessionStatus,
@@ -30,6 +33,8 @@ import type {
 
 export function PsychologistDashboard() {
     const [profileMissing, setProfileMissing] = useState(false);
+    const [clinicLinks, setClinicLinks] = useState<ClinicLinkItem[]>([]);
+    const [clinicLinksError, setClinicLinksError] = useState(false);
     const [links, setLinks] = useState<TherapeuticLink[]>([]);
     const [sessions, setSessions] = useState<SessionItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -51,14 +56,28 @@ export function PsychologistDashboard() {
 
         async function loadAgendaData() {
             try {
-                const [linksRes, sessionsRes] = await Promise.all([
+                const [linksRes, sessionsRes, clinicLinksRes] = await Promise.allSettled([
                     api.get<TherapeuticLink[]>('/links'),
                     api.get<SessionItem[]>('/sessions'),
+                    api.get<ClinicLinkItem[]>('/clinics/my-links'),
                 ]);
 
                 if (cancelled) return;
-                setLinks(linksRes.data);
-                setSessions(sessionsRes.data);
+
+                if (clinicLinksRes.status === 'fulfilled') {
+                    setClinicLinks(clinicLinksRes.value.data);
+                    setClinicLinksError(false);
+                } else {
+                    setClinicLinksError(true);
+                }
+
+                if (linksRes.status === 'rejected' || sessionsRes.status === 'rejected') {
+                    setFeedback({ type: 'error', text: 'Erro ao carregar dados da agenda.' });
+                    return;
+                }
+
+                setLinks(linksRes.value.data);
+                setSessions(sessionsRes.value.data);
 
                 try {
                     await api.get<PsychologistProfile>('/profiles/psychologist/me');
@@ -78,10 +97,6 @@ export function PsychologistDashboard() {
                             ),
                         });
                     }
-                }
-            } catch {
-                if (!cancelled) {
-                    setFeedback({ type: 'error', text: 'Erro ao carregar dados da agenda.' });
                 }
             } finally {
                 if (!cancelled) {
@@ -216,11 +231,13 @@ export function PsychologistDashboard() {
     }
 
     const activeLinks = links.filter((l) => l.status === 'ACTIVE');
+    const primaryClinicLink = resolvePrimaryClinicLink(clinicLinks);
+    const clinicBadge = getClinicLinkBadge(primaryClinicLink?.status ?? null);
 
     return (
         <DashboardShell
             roleBadgeLabel="Psicólogo(a)"
-            roleBadgeClassName="bg-[#E8F3F1] text-[#164E48]"
+            roleBadgeClassName="bg-primary-tint text-primary-tint-ink"
             navItems={PSYCHOLOGIST_NAV_ITEMS}
             pageTitle="Agenda & Sessões"
             pageSubtitle="Agende horários com pacientes ativos e acompanhe o status dos atendimentos."
@@ -228,21 +245,78 @@ export function PsychologistDashboard() {
             onCloseFeedback={() => setFeedback(null)}
         >
             {loading ? (
-                <div className="bg-white rounded-2xl border border-[#E2E6E1] p-12 text-center shadow-surface">
-                    <p className="text-sm text-[#4A5D61]">Carregando informações clínicas...</p>
+                <div className="bg-surface rounded-2xl border border-border-subtle p-12 text-center shadow-surface">
+                    <p className="text-sm text-ink-secondary">Carregando informações clínicas...</p>
                 </div>
             ) : (
                 <div className="space-y-6">
+                    {/* Faixa de resumo: Modo de Atuação (Autônomo vs. Consultório) */}
+                    {clinicLinksError ? (
+                        <section className="rounded-2xl bg-surface border border-danger-border px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-surface">
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <div className="h-9 w-9 rounded-xl bg-danger-bg text-danger-ink flex items-center justify-center shrink-0">
+                                    <AlertCircle className="h-4 w-4" />
+                                </div>
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full border bg-danger-bg text-danger-ink border-danger-border">
+                                        Status indisponível
+                                    </span>
+                                    <span className="text-xs text-danger-ink">
+                                        Não foi possível verificar seu vínculo com consultório. Tente novamente em instantes.
+                                    </span>
+                                </div>
+                            </div>
+                            <Link
+                                to="/psychologist/profile"
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-primary-ink hover:underline self-start sm:self-center shrink-0"
+                            >
+                                Gerenciar vínculo
+                                <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                        </section>
+                    ) : (
+                        <section className="rounded-2xl bg-surface border border-border-subtle px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-surface">
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <div className="h-9 w-9 rounded-xl bg-slate-inst-tint text-slate-inst flex items-center justify-center shrink-0">
+                                    <Building2 className="h-4 w-4" />
+                                </div>
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                    <span
+                                        className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${clinicBadge.className}`}
+                                    >
+                                        {clinicBadge.label}
+                                    </span>
+                                    {primaryClinicLink ? (
+                                        <span className="text-sm font-medium text-ink">
+                                            {primaryClinicLink.clinicName}
+                                        </span>
+                                    ) : (
+                                        <span className="text-xs text-ink-secondary">
+                                            Sem vínculo ativo com consultório
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            <Link
+                                to="/psychologist/profile"
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-primary-ink hover:underline self-start sm:self-center shrink-0"
+                            >
+                                Gerenciar vínculo
+                                <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                        </section>
+                    )}
+
                     {/* Banner de Onboarding quando perfil profissional não existe (404) */}
                     {profileMissing && (
-                        <div className="rounded-2xl bg-[#FDF5E6] border border-[#F3DFB6] p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-surface">
+                        <div className="rounded-2xl bg-warning-bg border border-warning-border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-surface">
                             <div className="flex items-start gap-3">
-                                <BadgeAlert className="h-5 w-5 text-[#8C5311] shrink-0 mt-0.5" />
+                                <BadgeAlert className="h-5 w-5 text-warning-ink shrink-0 mt-0.5" />
                                 <div>
-                                    <p className="text-sm font-semibold text-[#8C5311]">
+                                    <p className="text-sm font-semibold text-warning-ink">
                                         Complete seu Perfil Profissional para ativar seus atendimentos
                                     </p>
-                                    <p className="text-xs text-[#8C5311]/90 mt-0.5">
+                                    <p className="text-xs text-warning-ink/90 mt-0.5">
                                         Configure seu número de CRP e sua abordagem terapêutica para
                                         vincular pacientes e realizar agendamentos.
                                     </p>
@@ -250,7 +324,7 @@ export function PsychologistDashboard() {
                             </div>
                             <Link
                                 to="/psychologist/profile"
-                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#8C5311] hover:bg-[#70420D] text-white text-xs font-semibold rounded-xl transition self-start sm:self-center shrink-0"
+                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-warning-solid hover:bg-warning-solid-hover text-white text-xs font-semibold rounded-xl transition self-start sm:self-center shrink-0"
                             >
                                 Configurar CRP e Abordagem
                                 <ArrowRight className="h-3.5 w-3.5" />
@@ -259,18 +333,18 @@ export function PsychologistDashboard() {
                     )}
 
                     {/* Card Novo Agendamento */}
-                    <section className="bg-white rounded-2xl border border-[#E2E6E1] p-6 shadow-surface">
+                    <section className="bg-surface rounded-2xl border border-border-subtle p-6 shadow-surface">
                         <div className="mb-4">
-                            <h2 className="font-display text-lg font-semibold text-[#132226]">
+                            <h2 className="font-display text-lg font-semibold text-ink">
                                 Novo Agendamento
                             </h2>
-                            <p className="text-xs text-[#4A5D61] mt-0.5">
+                            <p className="text-xs text-ink-secondary mt-0.5">
                                 Selecione um paciente com vínculo ativo para reservar um novo horário.
                             </p>
                         </div>
 
                         {activeLinks.length === 0 && (
-                            <p className="text-xs text-[#8C5311] bg-[#FDF5E6] border border-[#F3DFB6] rounded-xl px-3.5 py-2.5 mb-4">
+                            <p className="text-xs text-warning-ink bg-warning-bg border border-warning-border rounded-xl px-3.5 py-2.5 mb-4">
                                 Você ainda não possui pacientes ativos vinculados.{' '}
                                 <Link
                                     to="/psychologist/patients"
@@ -288,7 +362,7 @@ export function PsychologistDashboard() {
                             <div>
                                 <label
                                     htmlFor="schedule-patient"
-                                    className="block text-xs font-medium text-[#4A5D61] mb-1.5"
+                                    className="block text-xs font-medium text-ink-secondary mb-1.5"
                                 >
                                     Paciente Ativo
                                 </label>
@@ -301,7 +375,7 @@ export function PsychologistDashboard() {
                                             e.target.value ? Number(e.target.value) : ''
                                         )
                                     }
-                                    className="w-full px-3 py-2 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63]"
+                                    className="w-full px-3 py-2 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink"
                                 >
                                     <option value="">Selecione...</option>
                                     {activeLinks.map((l) => (
@@ -315,7 +389,7 @@ export function PsychologistDashboard() {
                             <div>
                                 <label
                                     htmlFor="schedule-date"
-                                    className="block text-xs font-medium text-[#4A5D61] mb-1.5"
+                                    className="block text-xs font-medium text-ink-secondary mb-1.5"
                                 >
                                     Data
                                 </label>
@@ -326,14 +400,14 @@ export function PsychologistDashboard() {
                                     min={getTodayDateInputValue()}
                                     value={sessionDate}
                                     onChange={(e) => setSessionDate(e.target.value)}
-                                    className="w-full px-3 py-2 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] tabular-nums focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63]"
+                                    className="w-full px-3 py-2 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink tabular-nums focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink"
                                 />
                             </div>
 
                             <div>
                                 <label
                                     htmlFor="schedule-start"
-                                    className="block text-xs font-medium text-[#4A5D61] mb-1.5"
+                                    className="block text-xs font-medium text-ink-secondary mb-1.5"
                                 >
                                     Início
                                 </label>
@@ -343,14 +417,14 @@ export function PsychologistDashboard() {
                                     required
                                     value={startHour}
                                     onChange={(e) => setStartHour(e.target.value)}
-                                    className="w-full px-3 py-2 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] tabular-nums focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63]"
+                                    className="w-full px-3 py-2 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink tabular-nums focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink"
                                 />
                             </div>
 
                             <div>
                                 <label
                                     htmlFor="schedule-end"
-                                    className="block text-xs font-medium text-[#4A5D61] mb-1.5"
+                                    className="block text-xs font-medium text-ink-secondary mb-1.5"
                                 >
                                     Fim
                                 </label>
@@ -360,14 +434,14 @@ export function PsychologistDashboard() {
                                     required
                                     value={endHour}
                                     onChange={(e) => setEndHour(e.target.value)}
-                                    className="w-full px-3 py-2 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] tabular-nums focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63]"
+                                    className="w-full px-3 py-2 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink tabular-nums focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink"
                                 />
                             </div>
 
                             <button
                                 type="submit"
                                 disabled={scheduling || activeLinks.length === 0}
-                                className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#1E6B63] hover:bg-[#16544E] text-white text-sm font-semibold rounded-xl transition cursor-pointer disabled:opacity-60"
+                                className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-primary hover:bg-primary-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer disabled:opacity-60"
                             >
                                 <Plus className="h-4 w-4" />
                                 {scheduling ? 'Agendando...' : 'Agendar'}
@@ -376,23 +450,23 @@ export function PsychologistDashboard() {
                     </section>
 
                     {/* Lista de Sessões */}
-                    <section className="bg-white rounded-2xl border border-[#E2E6E1] p-6 shadow-surface">
+                    <section className="bg-surface rounded-2xl border border-border-subtle p-6 shadow-surface">
                         <div className="flex items-center justify-between gap-3 mb-4">
-                            <h2 className="font-display text-lg font-semibold text-[#132226] flex items-center gap-2">
-                                <Calendar className="h-5 w-5 text-[#1E6B63]" />
+                            <h2 className="font-display text-lg font-semibold text-ink flex items-center gap-2">
+                                <Calendar className="h-5 w-5 text-primary-ink" />
                                 Sessões Agendadas e Histórico
                             </h2>
-                            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0F2ED] text-[#4A5D61] tabular-nums">
+                            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-subsurface-muted text-ink-secondary tabular-nums">
                                 {sessions.length}
                             </span>
                         </div>
 
                         {sessions.length === 0 ? (
-                            <p className="text-sm text-[#4A5D61] text-center py-8">
+                            <p className="text-sm text-ink-secondary text-center py-8">
                                 Nenhuma sessão agendada até o momento.
                             </p>
                         ) : (
-                            <div className="divide-y divide-[#E2E6E1]">
+                            <div className="divide-y divide-border-subtle">
                                 {sessions.map((session) => {
                                     const badge = getSessionStatusBadge(session.status);
                                     const isUpdatingThis = updatingSessionId === session.id;
@@ -402,14 +476,14 @@ export function PsychologistDashboard() {
                                         <div key={session.id} className="py-4 space-y-3">
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                                 <div className="flex items-start gap-3">
-                                                    <div className="p-2 rounded-xl bg-[#F0F2ED] text-[#4A5D61] mt-0.5">
+                                                    <div className="p-2 rounded-xl bg-subsurface-muted text-ink-secondary mt-0.5">
                                                         <Clock className="h-4 w-4" />
                                                     </div>
                                                     <div>
-                                                        <p className="text-sm font-semibold text-[#132226]">
+                                                        <p className="text-sm font-semibold text-ink">
                                                             {session.patientName}
                                                         </p>
-                                                        <p className="text-xs text-[#4A5D61] mt-0.5 tabular-nums">
+                                                        <p className="text-xs text-ink-secondary mt-0.5 tabular-nums">
                                                             {formatSessionDateTime(
                                                                 session.startTime,
                                                                 session.endTime
@@ -438,7 +512,7 @@ export function PsychologistDashboard() {
                                                                         )
                                                                     }
                                                                     title="Marcar como realizada"
-                                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#1B5E3F] bg-[#E8F4EE] hover:bg-[#D5ECDF] rounded-lg border border-[#C6E3D3] cursor-pointer disabled:opacity-60 transition"
+                                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-success-ink bg-success-bg hover:opacity-90 rounded-lg border border-success-border cursor-pointer disabled:opacity-60 transition"
                                                                 >
                                                                     <CheckCircle2 className="h-3.5 w-3.5" />
                                                                     Realizada
@@ -453,7 +527,7 @@ export function PsychologistDashboard() {
                                                                         )
                                                                     }
                                                                     title="Registrar falta"
-                                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#8C5311] bg-[#FDF5E6] hover:bg-[#FAE9C8] rounded-lg border border-[#F3DFB6] cursor-pointer disabled:opacity-60 transition"
+                                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-warning-ink bg-warning-bg hover:opacity-90 rounded-lg border border-warning-border cursor-pointer disabled:opacity-60 transition"
                                                                 >
                                                                     <AlertCircle className="h-3.5 w-3.5" />
                                                                     Falta
@@ -468,7 +542,7 @@ export function PsychologistDashboard() {
                                                                         )
                                                                     }
                                                                     title="Cancelar sessão"
-                                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-[#526064] bg-[#F9FAF8] hover:bg-[#F0F2ED] rounded-lg border border-[#E2E6E1] cursor-pointer disabled:opacity-60 transition"
+                                                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-neutral-ink bg-subsurface hover:bg-subsurface-muted rounded-lg border border-border-subtle cursor-pointer disabled:opacity-60 transition"
                                                                 >
                                                                     <XCircle className="h-3.5 w-3.5" />
                                                                     Cancelar
@@ -479,8 +553,8 @@ export function PsychologistDashboard() {
                                             </div>
 
                                             {isConfirmingEarly && (
-                                                <div className="rounded-xl bg-[#FDF5E6] border border-[#F3DFB6] p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                                    <p className="text-xs font-medium text-[#8C5311]">
+                                                <div className="rounded-xl bg-warning-bg border border-warning-border p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                    <p className="text-xs font-medium text-warning-ink">
                                                         Esta sessão está agendada para mais tarde.
                                                         Confirmar que o atendimento foi adiantado (foi
                                                         atendido antes)?
@@ -496,7 +570,7 @@ export function PsychologistDashboard() {
                                                                     true
                                                                 )
                                                             }
-                                                            className="px-3 py-1.5 bg-[#1B5E3F] hover:bg-[#154A31] text-white text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-60 transition"
+                                                            className="px-3 py-1.5 bg-success-solid hover:bg-success-solid-hover text-white text-xs font-semibold rounded-lg cursor-pointer disabled:opacity-60 transition"
                                                         >
                                                             {isUpdatingThis
                                                                 ? 'Confirmando...'
@@ -508,7 +582,7 @@ export function PsychologistDashboard() {
                                                             onClick={() =>
                                                                 setConfirmingEarlySessionId(null)
                                                             }
-                                                            className="px-3 py-1.5 bg-white text-[#4A5D61] text-xs font-medium rounded-lg border border-[#E2E6E1] hover:bg-[#F9FAF8] cursor-pointer disabled:opacity-60 transition"
+                                                            className="px-3 py-1.5 bg-surface text-ink-secondary text-xs font-medium rounded-lg border border-border-subtle hover:bg-subsurface-muted cursor-pointer disabled:opacity-60 transition"
                                                         >
                                                             Voltar
                                                         </button>

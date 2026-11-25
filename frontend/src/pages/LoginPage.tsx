@@ -45,7 +45,7 @@ export function LoginPage() {
                     Ainda não tem conta?{' '}
                     <Link
                         to="/register"
-                        className="font-semibold text-[#1E6B63] hover:text-[#16544E] transition"
+                        className="font-semibold text-primary-ink hover:underline transition"
                     >
                         Cadastre-se
                     </Link>
@@ -56,12 +56,12 @@ export function LoginPage() {
                 <div>
                     <label
                         htmlFor="login-email"
-                        className="block text-sm font-medium text-[#132226] mb-1.5"
+                        className="block text-sm font-medium text-ink mb-1.5"
                     >
                         E-mail
                     </label>
                     <div className="relative">
-                        <Mail className="h-4 w-4 text-[#4A5D61] absolute left-3.5 top-3" />
+                        <Mail className="h-4 w-4 text-ink-secondary absolute left-3.5 top-3" />
                         <input
                             id="login-email"
                             type="email"
@@ -70,7 +70,7 @@ export function LoginPage() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="seu@email.com"
-                            className="w-full pl-10 pr-3 py-2.5 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] placeholder:text-[#4A5D61]/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63] transition"
+                            className="w-full pl-10 pr-3 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink transition"
                         />
                     </div>
                 </div>
@@ -78,12 +78,12 @@ export function LoginPage() {
                 <div>
                     <label
                         htmlFor="login-password"
-                        className="block text-sm font-medium text-[#132226] mb-1.5"
+                        className="block text-sm font-medium text-ink mb-1.5"
                     >
                         Senha
                     </label>
                     <div className="relative">
-                        <Lock className="h-4 w-4 text-[#4A5D61] absolute left-3.5 top-3" />
+                        <Lock className="h-4 w-4 text-ink-secondary absolute left-3.5 top-3" />
                         <input
                             id="login-password"
                             type="password"
@@ -91,7 +91,7 @@ export function LoginPage() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="••••••"
-                            className="w-full pl-10 pr-3 py-2.5 bg-[#F9FAF8] border border-[#E2E6E1] rounded-xl text-sm text-[#132226] placeholder:text-[#4A5D61]/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1E6B63]/20 focus:border-[#1E6B63] transition"
+                            className="w-full pl-10 pr-3 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink transition"
                         />
                     </div>
                 </div>
@@ -99,7 +99,7 @@ export function LoginPage() {
                 <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-2.5 px-4 bg-[#1E6B63] hover:bg-[#16544E] disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition cursor-pointer"
+                    className="w-full py-2.5 px-4 bg-primary hover:bg-primary-hover disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition cursor-pointer"
                 >
                     {loading ? 'Entrando...' : 'Entrar'}
                 </button>
