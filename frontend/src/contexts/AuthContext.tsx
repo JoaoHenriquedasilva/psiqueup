@@ -8,7 +8,7 @@ import {
     saveStoredSession,
     type StoredUser,
 } from '../utils/authStorage';
-import { AuthContext } from './useAuth';
+import { AuthContext, type RegisterClinicPayload } from './useAuth';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<StoredUser | null>(() => loadStoredUser());
@@ -44,6 +44,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return saveSession(data);
     }
 
+    async function registerClinic(payload: RegisterClinicPayload): Promise<UserRole> {
+        const { data } = await api.post<AuthResponse>('/auth/register-clinic', payload);
+        return saveSession(data);
+    }
+
     function logout() {
         clearStoredSession();
         setUser(null);
@@ -56,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 isAuthenticated: !!user && !!getStoredToken(),
                 login,
                 register,
+                registerClinic,
                 logout,
             }}
         >

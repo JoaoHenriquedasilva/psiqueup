@@ -1,15 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { UserPlus, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, BadgeAlert, UserPlus, Users } from 'lucide-react';
 import { DashboardShell } from '../components/DashboardShell';
 import { type FeedbackMessage } from '../components/FeedbackBanner';
 import { InitialsAvatar } from '../components/InitialsAvatar';
 import { api } from '../services/api';
-import { extractApiErrorMessage } from '../utils/apiError';
+import { extractApiErrorMessage, isApiHttpStatus } from '../utils/apiError';
 import { PSYCHOLOGIST_NAV_ITEMS } from '../utils/navigation';
-import type { TherapeuticLink } from '../types/api';
+import type { PsychologistProfile, TherapeuticLink } from '../types/api';
 
 export function PsychologistPatientsPage() {
     const [links, setLinks] = useState<TherapeuticLink[]>([]);
+    const [profileMissing, setProfileMissing] = useState(false);
     const [loading, setLoading] = useState(true);
     const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
 
@@ -19,25 +21,48 @@ export function PsychologistPatientsPage() {
     useEffect(() => {
         let cancelled = false;
 
-        api.get<TherapeuticLink[]>('/links')
-            .then((res) => {
-                if (!cancelled) {
-                    setLinks(res.data);
-                }
-            })
-            .catch((err: unknown) => {
-                if (!cancelled) {
+        async function loadPatientsData() {
+            try {
+                const [linksRes, profileRes] = await Promise.allSettled([
+                    api.get<TherapeuticLink[]>('/links'),
+                    api.get<PsychologistProfile>('/profiles/psychologist/me'),
+                ]);
+
+                if (cancelled) return;
+
+                if (linksRes.status === 'fulfilled') {
+                    setLinks(linksRes.value.data);
+                } else {
                     setFeedback({
                         type: 'error',
-                        text: extractApiErrorMessage(err, 'Erro ao carregar lista de pacientes.'),
+                        text: extractApiErrorMessage(
+                            linksRes.reason,
+                            'Erro ao carregar lista de pacientes.'
+                        ),
                     });
                 }
-            })
-            .finally(() => {
+
+                if (profileRes.status === 'fulfilled') {
+                    setProfileMissing(false);
+                } else if (isApiHttpStatus(profileRes.reason, 404)) {
+                    setProfileMissing(true);
+                } else if (linksRes.status === 'fulfilled') {
+                    setFeedback({
+                        type: 'error',
+                        text: extractApiErrorMessage(
+                            profileRes.reason,
+                            'Erro ao verificar perfil profissional.'
+                        ),
+                    });
+                }
+            } finally {
                 if (!cancelled) {
                     setLoading(false);
                 }
-            });
+            }
+        }
+
+        void loadPatientsData();
 
         return () => {
             cancelled = true;
@@ -94,6 +119,30 @@ export function PsychologistPatientsPage() {
                 </div>
             ) : (
                 <div className="space-y-6">
+                    {profileMissing && (
+                        <div className="rounded-2xl bg-warning-bg border border-warning-border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-surface">
+                            <div className="flex items-start gap-3">
+                                <BadgeAlert className="h-5 w-5 text-warning-ink shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-semibold text-warning-ink">
+                                        Configure seu CRP antes de vincular pacientes
+                                    </p>
+                                    <p className="text-xs text-warning-ink/90 mt-0.5">
+                                        Para vincular pacientes e liberar agendamentos, preencha seu
+                                        registro CRP e abordagem no Perfil Profissional.
+                                    </p>
+                                </div>
+                            </div>
+                            <Link
+                                to="/psychologist/profile"
+                                className="inline-flex items-center gap-1.5 bg-warning-solid hover:bg-warning-solid-hover text-white text-xs font-semibold px-4 py-2 rounded-xl transition self-start sm:self-center shrink-0"
+                            >
+                                Configurar CRP agora
+                                <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                        </div>
+                    )}
+
                     {/* Formulário de vínculo */}
                     <section className="bg-surface rounded-2xl border border-border-subtle p-6 shadow-surface">
                         <h2 className="font-display text-lg font-semibold text-ink mb-1">
@@ -114,20 +163,27 @@ export function PsychologistPatientsPage() {
                                 type="email"
                                 required
                                 maxLength={150}
+                                disabled={linkingPatient || profileMissing}
                                 value={patientEmail}
                                 onChange={(e) => setPatientEmail(e.target.value)}
                                 placeholder="paciente@email.com"
-                                className="flex-1 px-3.5 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink"
+                                className="flex-1 px-3.5 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink disabled:opacity-60 disabled:cursor-not-allowed"
                             />
                             <button
                                 type="submit"
-                                disabled={linkingPatient}
-                                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer disabled:opacity-60 shrink-0"
+                                disabled={linkingPatient || profileMissing}
+                                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white text-sm font-semibold rounded-xl transition cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
                             >
                                 <UserPlus className="h-4 w-4" />
                                 {linkingPatient ? 'Vinculando...' : 'Vincular Paciente'}
                             </button>
                         </form>
+                        {profileMissing && (
+                            <p className="text-xs text-ink-secondary mt-2">
+                                O envio de novos vínculos será liberado assim que seu CRP for
+                                salvo.
+                            </p>
+                        )}
                     </section>
 
                     {/* Lista completa de pacientes */}

@@ -1,21 +1,36 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { HeartHandshake, Lock, Mail, Stethoscope, User } from 'lucide-react';
+import { Building2, FileText, HeartHandshake, Lock, Mail, Stethoscope, User } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
 import { useAuth } from '../contexts/useAuth';
+import { useCnpjField } from '../hooks/useCnpjField';
 import { extractApiErrorMessage } from '../utils/apiError';
 import { getHomeRouteByRole } from '../utils/authRoutes';
 
+type RegisterProfileMode = 'PATIENT' | 'PSYCHOLOGIST' | 'CLINIC';
+
 export function RegisterPage() {
-    const { register } = useAuth();
+    const { register, registerClinic } = useAuth();
     const navigate = useNavigate();
 
+    const [profileMode, setProfileMode] = useState<RegisterProfileMode>('PATIENT');
+    const [clinicName, setClinicName] = useState('');
+    const cnpjField = useCnpjField();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [role, setRole] = useState<'PATIENT' | 'PSYCHOLOGIST'>('PATIENT');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    const isClinicMode = profileMode === 'CLINIC';
+
+    function handleSelectMode(nextMode: RegisterProfileMode) {
+        setProfileMode(nextMode);
+        setError('');
+        if (nextMode !== 'CLINIC') {
+            cnpjField.setError('');
+        }
+    }
 
     async function handleSubmit(e: FormEvent) {
         e.preventDefault();
@@ -23,6 +38,17 @@ export function RegisterPage() {
 
         const trimmedName = name.trim();
         const trimmedEmail = email.trim();
+
+        if (isClinicMode) {
+            const trimmedClinicName = clinicName.trim();
+            if (trimmedClinicName.length < 3) {
+                setError('O nome do consultório deve ter entre 3 e 150 caracteres.');
+                return;
+            }
+            if (!cnpjField.validate()) {
+                return;
+            }
+        }
 
         if (trimmedName.length < 3) {
             setError('O nome deve ter entre 3 e 120 caracteres.');
@@ -36,7 +62,15 @@ export function RegisterPage() {
 
         setLoading(true);
         try {
-            const createdRole = await register(trimmedName, trimmedEmail, password, role);
+            const createdRole = isClinicMode
+                ? await registerClinic({
+                      clinicName: clinicName.trim(),
+                      cnpj: cnpjField.strippedValue,
+                      adminName: trimmedName,
+                      adminEmail: trimmedEmail,
+                      password,
+                  })
+                : await register(trimmedName, trimmedEmail, password, profileMode);
             navigate(getHomeRouteByRole(createdRole), { replace: true });
         } catch (err: unknown) {
             setError(extractApiErrorMessage(err, 'Não foi possível concluir o cadastro.'));
@@ -66,9 +100,9 @@ export function RegisterPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <button
                         type="button"
-                        onClick={() => setRole('PATIENT')}
+                        onClick={() => handleSelectMode('PATIENT')}
                         className={`text-left p-3 rounded-xl border transition cursor-pointer ${
-                            role === 'PATIENT'
+                            profileMode === 'PATIENT'
                                 ? 'bg-primary-tint border-primary-ink text-primary-tint-ink'
                                 : 'bg-subsurface border-border-subtle text-ink-secondary hover:bg-subsurface-muted hover:text-ink'
                         }`}
@@ -84,9 +118,9 @@ export function RegisterPage() {
 
                     <button
                         type="button"
-                        onClick={() => setRole('PSYCHOLOGIST')}
+                        onClick={() => handleSelectMode('PSYCHOLOGIST')}
                         className={`text-left p-3 rounded-xl border transition cursor-pointer ${
-                            role === 'PSYCHOLOGIST'
+                            profileMode === 'PSYCHOLOGIST'
                                 ? 'bg-primary-tint border-primary-ink text-primary-tint-ink'
                                 : 'bg-subsurface border-border-subtle text-ink-secondary hover:bg-subsurface-muted hover:text-ink'
                         }`}
@@ -99,14 +133,117 @@ export function RegisterPage() {
                             Gerencio agenda, pacientes e perfil CRP
                         </p>
                     </button>
+
+                    <button
+                        type="button"
+                        onClick={() => handleSelectMode('CLINIC')}
+                        className={`sm:col-span-2 text-left p-3 rounded-xl border transition cursor-pointer ${
+                            isClinicMode
+                                ? 'bg-slate-inst-tint border-slate-inst text-slate-inst-ink'
+                                : 'bg-subsurface border-border-subtle text-ink-secondary hover:bg-subsurface-muted hover:text-ink'
+                        }`}
+                    >
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 font-semibold text-sm">
+                                <Building2 className="h-4 w-4 shrink-0" />
+                                <span>Abrir Consultório</span>
+                            </div>
+                            <span
+                                className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                    isClinicMode
+                                        ? 'bg-surface border-slate-inst-border text-slate-inst-ink'
+                                        : 'bg-surface border-border-subtle text-ink-secondary'
+                                }`}
+                            >
+                                Admin
+                            </span>
+                        </div>
+                        <p className="text-[11px] mt-1 leading-snug opacity-85">
+                            Cadastre sua clínica por CNPJ, aprove psicólogos e faça triagens
+                        </p>
+                    </button>
                 </div>
+
+                {isClinicMode && (
+                    <>
+                        <div className="pt-1 border-t border-border-subtle">
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-secondary">
+                                DADOS DO CONSULTÓRIO
+                            </p>
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="register-clinic-name"
+                                className="block text-sm font-medium text-ink mb-1.5"
+                            >
+                                Nome do consultório
+                            </label>
+                            <div className="relative">
+                                <Building2 className="h-4 w-4 text-ink-secondary absolute left-3.5 top-3" />
+                                <input
+                                    id="register-clinic-name"
+                                    type="text"
+                                    required
+                                    minLength={3}
+                                    maxLength={150}
+                                    value={clinicName}
+                                    onChange={(e) => setClinicName(e.target.value)}
+                                    placeholder="Ex.: Instituto Cuidar Psicologia"
+                                    className="w-full pl-10 pr-3 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink transition"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="register-clinic-cnpj"
+                                className="block text-sm font-medium text-ink mb-1.5"
+                            >
+                                CNPJ
+                            </label>
+                            <div className="relative">
+                                <FileText className="h-4 w-4 text-ink-secondary absolute left-3.5 top-3" />
+                                <input
+                                    id="register-clinic-cnpj"
+                                    type="text"
+                                    inputMode="numeric"
+                                    required
+                                    maxLength={18}
+                                    value={cnpjField.value}
+                                    onChange={(e) => cnpjField.handleChange(e.target.value)}
+                                    onBlur={cnpjField.handleBlur}
+                                    placeholder="00.000.000/0000-00"
+                                    className={`w-full pl-10 pr-3 py-2.5 bg-subsurface border rounded-xl text-sm text-ink tabular-nums placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 transition ${
+                                        cnpjField.error
+                                            ? 'border-danger-ink focus:ring-danger-ink/20 focus:border-danger-ink'
+                                            : 'border-border-subtle focus:ring-primary-ink/20 focus:border-primary-ink'
+                                    }`}
+                                />
+                            </div>
+                            {cnpjField.error ? (
+                                <p className="text-xs text-danger-ink mt-1">{cnpjField.error}</p>
+                            ) : (
+                                <p className="text-[11px] text-ink-secondary mt-1">
+                                    Utilizado para identificar seu consultório e permitir solicitações de psicólogos.
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="pt-1 border-t border-border-subtle">
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-secondary">
+                                DADOS DO(A) RESPONSÁVEL
+                            </p>
+                        </div>
+                    </>
+                )}
 
                 <div>
                     <label
                         htmlFor="register-name"
                         className="block text-sm font-medium text-ink mb-1.5"
                     >
-                        Nome completo
+                        {isClinicMode ? 'Nome completo do(a) responsável' : 'Nome completo'}
                     </label>
                     <div className="relative">
                         <User className="h-4 w-4 text-ink-secondary absolute left-3.5 top-3" />
@@ -118,7 +255,7 @@ export function RegisterPage() {
                             maxLength={120}
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            placeholder="Ex.: Dra. Ana Silva"
+                            placeholder={isClinicMode ? 'Ex.: Dr. Carlos Mendes' : 'Ex.: Dra. Ana Silva'}
                             className="w-full pl-10 pr-3 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink transition"
                         />
                     </div>
@@ -174,7 +311,13 @@ export function RegisterPage() {
                     disabled={loading}
                     className="w-full py-2.5 px-4 bg-primary hover:bg-primary-hover disabled:opacity-60 text-white font-semibold rounded-xl text-sm transition cursor-pointer"
                 >
-                    {loading ? 'Criando conta...' : 'Criar conta'}
+                    {loading
+                        ? isClinicMode
+                            ? 'Abrindo consultório...'
+                            : 'Criando conta...'
+                        : isClinicMode
+                          ? 'Criar consultório e conta'
+                          : 'Criar conta'}
                 </button>
             </form>
         </AuthLayout>

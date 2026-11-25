@@ -32,10 +32,9 @@ function parseFilterFromParams(param: string | null): SessionFilter {
 
 export function AdminSessionsPage() {
     const [searchParams, setSearchParams] = useSearchParams();
-    const initialFilter = parseFilterFromParams(searchParams.get('status'));
+    const statusFilter = parseFilterFromParams(searchParams.get('status'));
 
     const [sessions, setSessions] = useState<SessionItem[]>([]);
-    const [statusFilter, setStatusFilter] = useState<SessionFilter>(initialFilter);
     const [loading, setLoading] = useState(true);
     const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
     const [resolvingSessionId, setResolvingSessionId] = useState<number | null>(null);
@@ -49,7 +48,7 @@ export function AdminSessionsPage() {
     useEffect(() => {
         let cancelled = false;
 
-        fetchAdminSessions(initialFilter)
+        fetchAdminSessions(statusFilter)
             .then((data) => {
                 if (!cancelled) {
                     setSessions(data);
@@ -72,25 +71,14 @@ export function AdminSessionsPage() {
         return () => {
             cancelled = true;
         };
-    }, [initialFilter]);
+    }, [statusFilter]);
 
-    async function handleFilterChange(nextFilter: SessionFilter) {
-        setStatusFilter(nextFilter);
+    function handleFilterChange(nextFilter: SessionFilter) {
         setFeedback(null);
         if (nextFilter === 'ALL') {
             setSearchParams({});
         } else {
             setSearchParams({ status: nextFilter });
-        }
-
-        try {
-            const data = await fetchAdminSessions(nextFilter);
-            setSessions(data);
-        } catch (err: unknown) {
-            setFeedback({
-                type: 'error',
-                text: extractApiErrorMessage(err, 'Erro ao filtrar sessões da clínica.'),
-            });
         }
     }
 

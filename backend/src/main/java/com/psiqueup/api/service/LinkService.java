@@ -1,16 +1,20 @@
 package com.psiqueup.api.service;
 
+import com.psiqueup.api.domain.entity.Clinic;
+import com.psiqueup.api.domain.entity.ClinicPsychologist;
 import com.psiqueup.api.domain.entity.PatientProfile;
 import com.psiqueup.api.domain.entity.PatientPsychologistLink;
 import com.psiqueup.api.domain.entity.PsychologistProfile;
 import com.psiqueup.api.domain.entity.Session;
 import com.psiqueup.api.domain.entity.User;
+import com.psiqueup.api.domain.enums.ClinicPsychologistStatus;
 import com.psiqueup.api.domain.enums.LinkStatus;
 import com.psiqueup.api.domain.enums.SessionStatus;
 import com.psiqueup.api.domain.enums.UserRole;
 import com.psiqueup.api.dto.link.CreateLinkRequest;
 import com.psiqueup.api.dto.link.LinkResponse;
 import com.psiqueup.api.dto.link.RejectLinkRequest;
+import com.psiqueup.api.repository.ClinicPsychologistRepository;
 import com.psiqueup.api.repository.PatientProfileRepository;
 import com.psiqueup.api.repository.PatientPsychologistLinkRepository;
 import com.psiqueup.api.repository.PsychologistProfileRepository;
@@ -30,6 +34,7 @@ import java.util.List;
 public class LinkService {
 
     private final PatientPsychologistLinkRepository linkRepository;
+    private final ClinicPsychologistRepository clinicPsychologistRepository;
     private final PsychologistProfileRepository psychologistRepository;
     private final PatientProfileRepository patientRepository;
     private final SessionRepository sessionRepository;
@@ -68,9 +73,15 @@ public class LinkService {
                     throw new IllegalArgumentException("Já existe um vínculo ativo com este paciente.");
                 });
 
+        Clinic clinic = clinicPsychologistRepository
+                .findFirstByPsychologistUserIdAndStatus(psychologist.getUserId(), ClinicPsychologistStatus.APPROVED)
+                .map(ClinicPsychologist::getClinic)
+                .orElse(null);
+
         PatientPsychologistLink link = PatientPsychologistLink.builder()
                 .psychologist(psychologist)
                 .patient(patient)
+                .clinic(clinic)
                 .status(LinkStatus.ACTIVE)
                 .build();
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
+    AlertCircle,
     AlertTriangle,
     ArrowRight,
     Calendar,
@@ -19,6 +20,7 @@ import { ADMIN_NAV_ITEMS } from '../utils/navigation';
 import type {
     AdminDashboardMetrics,
     AdminPsychologistItem,
+    ClinicLinkItem,
     SessionItem,
 } from '../types/api';
 
@@ -27,6 +29,8 @@ export function AdminDashboard() {
 
     const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
     const [psychologists, setPsychologists] = useState<AdminPsychologistItem[]>([]);
+    const [pendingRequests, setPendingRequests] = useState<ClinicLinkItem[]>([]);
+    const [pendingRequestsError, setPendingRequestsError] = useState(false);
     const [disputedSessions, setDisputedSessions] = useState<SessionItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [feedback, setFeedback] = useState<FeedbackMessage | null>(null);
@@ -34,26 +38,46 @@ export function AdminDashboard() {
     useEffect(() => {
         let cancelled = false;
 
-        Promise.all([
+        Promise.allSettled([
             api.get<AdminDashboardMetrics>('/admin/dashboard'),
             api.get<AdminPsychologistItem[]>('/admin/psychologists'),
             api.get<SessionItem[]>('/admin/sessions', { params: { status: 'DISPUTED' } }),
+            api.get<ClinicLinkItem[]>('/admin/psychologist-requests', {
+                params: { status: 'PENDING' },
+            }),
         ])
-            .then(([metricsRes, psychologistsRes, disputedRes]) => {
+            .then(([metricsRes, psychologistsRes, disputedRes, pendingReqRes]) => {
                 if (cancelled) return;
-                setMetrics(metricsRes.data);
-                setPsychologists(psychologistsRes.data);
-                setDisputedSessions(disputedRes.data);
-            })
-            .catch((err: unknown) => {
-                if (!cancelled) {
+
+                if (pendingReqRes.status === 'fulfilled') {
+                    setPendingRequests(pendingReqRes.value.data);
+                    setPendingRequestsError(false);
+                } else {
+                    setPendingRequestsError(true);
+                }
+
+                const failedCore = [metricsRes, psychologistsRes, disputedRes].find(
+                    (res): res is PromiseRejectedResult => res.status === 'rejected'
+                );
+                if (failedCore) {
                     setFeedback({
                         type: 'error',
                         text: extractApiErrorMessage(
-                            err,
+                            failedCore.reason,
                             'Erro ao carregar dados do consultório.'
                         ),
                     });
+                    return;
+                }
+
+                if (
+                    metricsRes.status === 'fulfilled' &&
+                    psychologistsRes.status === 'fulfilled' &&
+                    disputedRes.status === 'fulfilled'
+                ) {
+                    setMetrics(metricsRes.value.data);
+                    setPsychologists(psychologistsRes.value.data);
+                    setDisputedSessions(disputedRes.value.data);
                 }
             })
             .finally(() => {
@@ -87,6 +111,53 @@ export function AdminDashboard() {
                 </div>
             ) : (
                 <div className="space-y-6">
+                    {pendingRequestsError && (
+                        <section className="rounded-2xl bg-danger-bg border border-danger-border px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-surface">
+                            <div className="flex items-center gap-3">
+                                <AlertCircle className="h-5 w-5 text-danger-ink shrink-0" />
+                                <p className="text-xs sm:text-sm font-medium text-danger-ink">
+                                    Não foi possível verificar se há solicitações de vínculo
+                                    pendentes.
+                                </p>
+                            </div>
+                            <Link
+                                to="/admin/psychologists"
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-danger-ink hover:underline self-start sm:self-center shrink-0"
+                            >
+                                Verificar em Psicólogos
+                                <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                        </section>
+                    )}
+
+                    {pendingRequests.length > 0 && (
+                        <section className="rounded-2xl bg-warning-bg border border-warning-border px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-surface">
+                            <div className="flex items-start sm:items-center gap-3">
+                                <div className="h-9 w-9 rounded-xl bg-warning-solid text-white flex items-center justify-center shrink-0">
+                                    <UserCheck className="h-4 w-4" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-warning-ink tabular-nums">
+                                        {pendingRequests.length}{' '}
+                                        {pendingRequests.length === 1
+                                            ? 'solicitação de vínculo aguardando aprovação'
+                                            : 'solicitações de vínculo aguardando aprovação'}
+                                    </p>
+                                    <p className="text-xs text-warning-ink/90 mt-0.5">
+                                        Psicólogos solicitaram entrada no seu consultório e aguardam sua análise.
+                                    </p>
+                                </div>
+                            </div>
+                            <Link
+                                to="/admin/psychologists"
+                                className="inline-flex items-center gap-1.5 px-4 py-2 bg-warning-solid hover:bg-warning-solid-hover text-white text-xs font-semibold rounded-xl transition self-start sm:self-center shrink-0"
+                            >
+                                Analisar solicitações
+                                <ArrowRight className="h-3.5 w-3.5" />
+                            </Link>
+                        </section>
+                    )}
+
                     {/* 4 KPIs */}
                     {metrics && (
                         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
