@@ -5,13 +5,18 @@ import { useAuth } from './contexts/useAuth';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminPsychologistsPage } from './pages/AdminPsychologistsPage';
 import { AdminSessionsPage } from './pages/AdminSessionsPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { LoginPage } from './pages/LoginPage';
 import { PatientDashboard } from './pages/PatientDashboard';
 import { PatientSessionsPage } from './pages/PatientSessionsPage';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage';
 import { PsychologistDashboard } from './pages/PsychologistDashboard';
 import { PsychologistPatientsPage } from './pages/PsychologistPatientsPage';
 import { PsychologistProfilePage } from './pages/PsychologistProfilePage';
 import { RegisterPage } from './pages/RegisterPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
+import { TermsOfUsePage } from './pages/TermsOfUsePage';
+import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { getHomeRouteByRole } from './utils/authRoutes';
 import type { UserRole } from './types/api';
 
@@ -77,6 +82,25 @@ export function App() {
                             </PublicOnlyRoute>
                         }
                     />
+                    <Route
+                        path="/forgot-password"
+                        element={
+                            <PublicOnlyRoute>
+                                <ForgotPasswordPage />
+                            </PublicOnlyRoute>
+                        }
+                    />
+                    <Route
+                        path="/reset-password"
+                        element={
+                            <PublicOnlyRoute>
+                                <ResetPasswordPage />
+                            </PublicOnlyRoute>
+                        }
+                    />
+                    <Route path="/verify-email" element={<VerifyEmailPage />} />
+                    <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                    <Route path="/terms" element={<TermsOfUsePage />} />
 
                     {/* Rotas do Psicólogo */}
                     <Route

@@ -38,6 +38,26 @@ public class User {
     @Builder.Default
     private Boolean active = true;
 
+    @Column(name = "email_verified", nullable = false)
+    @Builder.Default
+    private Boolean emailVerified = false;
+
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private Integer tokenVersion = 0;
+
+    @Column(name = "terms_version", length = 30)
+    private String termsVersion;
+
+    @Column(name = "privacy_version", length = 30)
+    private String privacyVersion;
+
+    @Column(name = "terms_accepted_at")
+    private OffsetDateTime termsAcceptedAt;
+
+    @Column(name = "terms_accepted_ip", length = 64)
+    private String termsAcceptedIp;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;

@@ -50,7 +50,8 @@ class SecurityHardeningTest {
                   "name": "Atacante Admin",
                   "email": "admin-hacker@psiqueup.test",
                   "password": "password123",
-                  "role": "ADMIN"
+                  "role": "ADMIN",
+                  "acceptedTerms": true
                 }
                 """;
 

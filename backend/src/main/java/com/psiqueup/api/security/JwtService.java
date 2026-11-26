@@ -20,6 +20,7 @@ import java.util.function.Function;
 public class JwtService {
 
     private static final int MIN_SECRET_BYTES = 32;
+    private static final String TOKEN_VERSION_CLAIM = "tv";
 
     @Value("${api.security.token.secret}")
     private String secretKey;
@@ -48,8 +49,11 @@ public class JwtService {
     }
 
     public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {
+        Map<String, Object> claims = extraClaims != null ? new HashMap<>(extraClaims) : new HashMap<>();
+        claims.put(TOKEN_VERSION_CLAIM, resolveUserTokenVersion(userDetails));
+
         return Jwts.builder()
-                .claims(extraClaims)
+                .claims(claims)
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + jwtExpiration))
@@ -65,10 +69,22 @@ public class JwtService {
         if (claims == null || userDetails == null || !userDetails.isEnabled()) {
             return false;
         }
+        Integer tokenVersion = claims.get(TOKEN_VERSION_CLAIM, Integer.class);
+        Integer expectedVersion = resolveUserTokenVersion(userDetails);
+        if (tokenVersion == null || !Objects.equals(tokenVersion, expectedVersion)) {
+            return false;
+        }
         Date expiration = claims.getExpiration();
         return Objects.equals(claims.getSubject(), userDetails.getUsername())
                 && expiration != null
                 && !expiration.before(new Date());
+    }
+
+    private Integer resolveUserTokenVersion(UserDetails userDetails) {
+        if (userDetails instanceof UserPrincipal principal && principal.getUser().getTokenVersion() != null) {
+            return principal.getUser().getTokenVersion();
+        }
+        return 0;
     }
 
     public Claims extractAllClaims(String token) {

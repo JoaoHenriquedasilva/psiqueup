@@ -168,20 +168,30 @@ class MultiTenantClinicTest {
                   "cnpj": "%s",
                   "adminName": "Admin %s",
                   "adminEmail": "%s",
-                  "password": "secret123"
+                  "password": "secret123",
+                  "acceptedTerms": true
                 }
                 """.formatted(clinicName, cnpj, clinicName, adminEmail);
 
-        MvcResult result = mockMvc().perform(post("/api/auth/register-clinic")
+        mockMvc().perform(post("/api/auth/register-clinic")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.role").value("ADMIN"))
-                .andExpect(jsonPath("$.token").isNotEmpty())
-                .andReturn();
+                .andExpect(jsonPath("$.verificationRequired").value(true));
 
-        String json = result.getResponse().getContentAsString();
-        return JsonPath.read(json, "$.token");
+        User adminUser = userRepository.findByEmail(adminEmail.trim().toLowerCase()).orElseThrow();
+        adminUser.setEmailVerified(true);
+        userRepository.save(adminUser);
+        return authService.login(new com.psiqueup.api.dto.auth.LoginRequest(adminEmail, "secret123")).token();
+    }
+
+    private com.psiqueup.api.dto.auth.AuthResponse registerAndVerify(
+            String name, String email, String password, PublicUserRole role, String cpf) {
+        authService.register(new RegisterRequest(name, email, password, role, cpf, true, null, null));
+        User user = userRepository.findByEmail(email.trim().toLowerCase()).orElseThrow();
+        user.setEmailVerified(true);
+        userRepository.save(user);
+        return authService.login(new com.psiqueup.api.dto.auth.LoginRequest(email, password));
     }
 
     @Test
@@ -206,7 +216,8 @@ class MultiTenantClinicTest {
                                   "cnpj": "%s",
                                   "adminName": "Outro Admin",
                                   "adminEmail": "outro.%s@psiqueup.test",
-                                  "password": "secret123"
+                                  "password": "secret123",
+                                  "acceptedTerms": true
                                 }
                                 """.formatted(cnpjDigits, suffix)))
                 .andExpect(status().isConflict());
@@ -220,7 +231,8 @@ class MultiTenantClinicTest {
                                   "cnpj": "%s",
                                   "adminName": "Admin Repetido",
                                   "adminEmail": "%s",
-                                  "password": "secret123"
+                                  "password": "secret123",
+                                  "acceptedTerms": true
                                 }
                                 """.formatted(uniqueCnpj(), adminEmail)))
                 .andExpect(status().isConflict());
@@ -234,7 +246,8 @@ class MultiTenantClinicTest {
                                   "cnpj": "00.000.000/0000-00",
                                   "adminName": "Admin Inválido",
                                   "adminEmail": "invalido1.%s@psiqueup.test",
-                                  "password": "secret123"
+                                  "password": "secret123",
+                                  "acceptedTerms": true
                                 }
                                 """.formatted(suffix)))
                 .andExpect(status().isBadRequest());
@@ -249,7 +262,8 @@ class MultiTenantClinicTest {
                                   "cnpj": "%s",
                                   "adminName": "Admin DV",
                                   "adminEmail": "invalido2.%s@psiqueup.test",
-                                  "password": "secret123"
+                                  "password": "secret123",
+                                  "acceptedTerms": true
                                 }
                                 """.formatted(invalidCheckDigit, suffix)))
                 .andExpect(status().isBadRequest());
@@ -262,7 +276,7 @@ class MultiTenantClinicTest {
         String tokenAdminA = registerClinicAndGetToken("Clínica A " + suffix, cnpjA, "adminA." + suffix + "@psiqueup.test");
 
         String psychEmail = "psy.join." + suffix + "@psiqueup.test";
-        var psychAuth = authService.register(new RegisterRequest("Dra. Ana", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        var psychAuth = registerAndVerify("Dra. Ana", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
         profileDomainService.upsertPsychologistProfile(psychEmail, new UpsertPsychologistProfileRequest(uniqueCrp(), 1L, "TCC"));
 
         // Psicólogo autônomo inicialmente sem vínculos
@@ -336,19 +350,19 @@ class MultiTenantClinicTest {
 
         // Psicólogo A (aprovado na Clínica A)
         String psyAEmail = "psya." + suffix + "@psiqueup.test";
-        var psyAAuth = authService.register(new RegisterRequest("Dr. Alpha", psyAEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        var psyAAuth = registerAndVerify("Dr. Alpha", psyAEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
         String crpA = uniqueCrp();
         profileDomainService.upsertPsychologistProfile(psyAEmail, new UpsertPsychologistProfileRequest(crpA, 1L, "TCC"));
 
         // Psicólogo B (aprovado na Clínica B)
         String psyBEmail = "psyb." + suffix + "@psiqueup.test";
-        var psyBAuth = authService.register(new RegisterRequest("Dra. Beta", psyBEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        var psyBAuth = registerAndVerify("Dra. Beta", psyBEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
         String crpB = uniqueCrp();
         profileDomainService.upsertPsychologistProfile(psyBEmail, new UpsertPsychologistProfileRequest(crpB, 1L, "Psicanálise"));
 
         // Psicólogo Autônomo (sem vínculo com clínica)
         String psyAutoEmail = "psyauto." + suffix + "@psiqueup.test";
-        authService.register(new RegisterRequest("Dr. Autônomo", psyAutoEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        registerAndVerify("Dr. Autônomo", psyAutoEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
         String crpAuto = uniqueCrp();
         profileDomainService.upsertPsychologistProfile(psyAutoEmail, new UpsertPsychologistProfileRequest(crpAuto, 1L, "Humanista"));
 
@@ -388,8 +402,8 @@ class MultiTenantClinicTest {
         String patAutoEmail = "patauto." + suffix + "@psiqueup.test";
         String patBCpf = uniqueCpf();
         String patAutoCpf = uniqueCpf();
-        authService.register(new RegisterRequest("Paciente Beta", patBEmail, "secret123", PublicUserRole.PATIENT, patBCpf));
-        authService.register(new RegisterRequest("Paciente Auto", patAutoEmail, "secret123", PublicUserRole.PATIENT, patAutoCpf));
+        registerAndVerify("Paciente Beta", patBEmail, "secret123", PublicUserRole.PATIENT, patBCpf);
+        registerAndVerify("Paciente Auto", patAutoEmail, "secret123", PublicUserRole.PATIENT, patAutoCpf);
 
         linkService.createLink(psyBEmail, new CreateLinkRequest(patBCpf));
         LinkResponse linkB = linkService.acceptLink(patBEmail, linkService.listMyLinks(patBEmail).getFirst().id());
@@ -480,18 +494,18 @@ class MultiTenantClinicTest {
         String tokenAdminA = registerClinicAndGetToken("Clínica Triagem " + suffix, cnpjA, "admin.triage." + suffix + "@psiqueup.test");
 
         String psyAEmail = "psy.triage." + suffix + "@psiqueup.test";
-        var psyAAuth = authService.register(new RegisterRequest("Dra. Triagem", psyAEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        var psyAAuth = registerAndVerify("Dra. Triagem", psyAEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
         profileDomainService.upsertPsychologistProfile(psyAEmail, new UpsertPsychologistProfileRequest(uniqueCrp(), 1L, "TCC"));
         Long psyAId = userRepository.findByEmail(psyAEmail).orElseThrow().getId();
 
         String psyAutoEmail = "psy.auto.triage." + suffix + "@psiqueup.test";
-        authService.register(new RegisterRequest("Dr. Sem Clinica", psyAutoEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        registerAndVerify("Dr. Sem Clinica", psyAutoEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
         profileDomainService.upsertPsychologistProfile(psyAutoEmail, new UpsertPsychologistProfileRequest(uniqueCrp(), 1L, "TCC"));
         Long psyAutoId = userRepository.findByEmail(psyAutoEmail).orElseThrow().getId();
 
         String patEmail = "pat.triage." + suffix + "@psiqueup.test";
         String patCpf = uniqueCpf();
-        authService.register(new RegisterRequest("Paciente Triagem", patEmail, "secret123", PublicUserRole.PATIENT, patCpf));
+        registerAndVerify("Paciente Triagem", patEmail, "secret123", PublicUserRole.PATIENT, patCpf);
 
         // Solicitar e aprovar Psy A na Clínica A
         MvcResult joinA = mockMvc().perform(post("/api/clinics/join")
@@ -563,7 +577,7 @@ class MultiTenantClinicTest {
         String tokenAdminB = registerClinicAndGetToken("Clínica Lock B " + suffix, cnpjB, "admin.lock.b." + suffix + "@psiqueup.test");
 
         String psyEmail = "psy.lock." + suffix + "@psiqueup.test";
-        var psyAuth = authService.register(new RegisterRequest("Dr. Lock", psyEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        var psyAuth = registerAndVerify("Dr. Lock", psyEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
         profileDomainService.upsertPsychologistProfile(psyEmail, new UpsertPsychologistProfileRequest(uniqueCrp(), 1L, "TCC"));
 
         // Solicita vínculo à Clínica B -> PENDING, depois Admin B rejeita
@@ -621,20 +635,20 @@ class MultiTenantClinicTest {
         String tokenAdminA = registerClinicAndGetToken("Clínica Scope A " + suffix, cnpjA, "admin.scope." + suffix + "@psiqueup.test");
 
         String psyAEmail = "psy.scope." + suffix + "@psiqueup.test";
-        var psyAAuth = authService.register(new RegisterRequest("Dra. Scope", psyAEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        var psyAAuth = registerAndVerify("Dra. Scope", psyAEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
         profileDomainService.upsertPsychologistProfile(psyAEmail, new UpsertPsychologistProfileRequest(uniqueCrp(), 1L, "TCC"));
         Long psyAId = userRepository.findByEmail(psyAEmail).orElseThrow().getId();
 
         String psyAutoEmail = "psy.auto.scope." + suffix + "@psiqueup.test";
-        authService.register(new RegisterRequest("Dr. Auto Scope", psyAutoEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        registerAndVerify("Dr. Auto Scope", psyAutoEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
         profileDomainService.upsertPsychologistProfile(psyAutoEmail, new UpsertPsychologistProfileRequest(uniqueCrp(), 1L, "TCC"));
 
         String patSharedEmail = "pat.shared." + suffix + "@psiqueup.test";
         String patOnlyAEmail = "pat.onlya." + suffix + "@psiqueup.test";
         String patSharedCpf = uniqueCpf();
         String patOnlyACpf = uniqueCpf();
-        authService.register(new RegisterRequest("Paciente Compartilhado", patSharedEmail, "secret123", PublicUserRole.PATIENT, patSharedCpf));
-        authService.register(new RegisterRequest("Paciente Exclusivo A", patOnlyAEmail, "secret123", PublicUserRole.PATIENT, patOnlyACpf));
+        registerAndVerify("Paciente Compartilhado", patSharedEmail, "secret123", PublicUserRole.PATIENT, patSharedCpf);
+        registerAndVerify("Paciente Exclusivo A", patOnlyAEmail, "secret123", PublicUserRole.PATIENT, patOnlyACpf);
         Long patSharedId = userRepository.findByEmail(patSharedEmail).orElseThrow().getId();
         Long patOnlyAId = userRepository.findByEmail(patOnlyAEmail).orElseThrow().getId();
 

@@ -1,13 +1,21 @@
 package com.psiqueup.api.service;
 
+import com.psiqueup.api.domain.entity.AuthActionToken;
 import com.psiqueup.api.domain.entity.Clinic;
 import com.psiqueup.api.domain.entity.PatientProfile;
 import com.psiqueup.api.domain.entity.User;
+import com.psiqueup.api.domain.enums.AuthTokenType;
 import com.psiqueup.api.domain.enums.UserRole;
 import com.psiqueup.api.dto.auth.AuthResponse;
+import com.psiqueup.api.dto.auth.EmailActionRequest;
 import com.psiqueup.api.dto.auth.LoginRequest;
+import com.psiqueup.api.dto.auth.MessageResponse;
 import com.psiqueup.api.dto.auth.RegisterClinicRequest;
+import com.psiqueup.api.dto.auth.RegisterPendingVerificationResponse;
 import com.psiqueup.api.dto.auth.RegisterRequest;
+import com.psiqueup.api.dto.auth.ResetPasswordRequest;
+import com.psiqueup.api.dto.auth.VerifyEmailRequest;
+import com.psiqueup.api.repository.AuthActionTokenRepository;
 import com.psiqueup.api.repository.ClinicRepository;
 import com.psiqueup.api.repository.PatientProfileRepository;
 import com.psiqueup.api.repository.UserRepository;
@@ -17,7 +25,10 @@ import com.psiqueup.api.security.UserPrincipal;
 import com.psiqueup.api.util.CnpjUtils;
 import com.psiqueup.api.util.CpfUtils;
 import com.psiqueup.api.util.EmailNormalizer;
+import com.psiqueup.api.util.RequestIpUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -28,20 +39,57 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.util.Base64;
+import java.util.HexFormat;
+
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
+    private static final Duration EMAIL_VERIFICATION_TTL = Duration.ofHours(24);
+    private static final Duration PASSWORD_RESET_TTL = Duration.ofMinutes(30);
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     private final UserRepository userRepository;
     private final ClinicRepository clinicRepository;
     private final PatientProfileRepository patientProfileRepository;
+    private final AuthActionTokenRepository authActionTokenRepository;
     private final CpfCryptoService cpfCryptoService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogService auditLogService;
+
+    @Value("${app.frontend.url:http://localhost:5173}")
+    private String frontendUrl;
+
+    @Value("${app.legal.terms-version:2026-11}")
+    private String currentTermsVersion;
+
+    @Value("${app.legal.privacy-version:2026-11}")
+    private String currentPrivacyVersion;
 
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public RegisterPendingVerificationResponse register(RegisterRequest request) {
+        User user = User.builder()
+                .active(true)
+                .emailVerified(false)
+                .build();
+        applyLegalConsent(
+                user,
+                request.acceptedTerms(),
+                request.termsVersion(),
+                request.privacyVersion(),
+                RequestIpUtils.resolveCurrentClientIp()
+        );
+
         String normalizedEmail = EmailNormalizer.normalize(request.email());
         if (userRepository.existsByEmail(normalizedEmail)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Este e-mail já está cadastrado.");
@@ -71,13 +119,10 @@ public class AuthService {
             }
         }
 
-        User user = User.builder()
-                .name(trimmedName)
-                .email(normalizedEmail)
-                .passwordHash(passwordEncoder.encode(request.password()))
-                .role(resolvedRole)
-                .active(true)
-                .build();
+        user.setName(trimmedName);
+        user.setEmail(normalizedEmail);
+        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setRole(resolvedRole);
 
         User savedUser = userRepository.save(user);
 
@@ -89,18 +134,30 @@ public class AuthService {
                     .build());
         }
 
-        String token = jwtService.generateToken(new UserPrincipal(savedUser));
+        issueAndSendEmailVerification(savedUser);
 
-        return new AuthResponse(
-                token,
-                savedUser.getName(),
+        return new RegisterPendingVerificationResponse(
+                "Cadastro realizado! Enviamos um link de confirmação para o seu e-mail.",
                 savedUser.getEmail(),
-                savedUser.getRole().name()
+                true
         );
     }
 
     @Transactional
-    public AuthResponse registerClinic(RegisterClinicRequest request) {
+    public RegisterPendingVerificationResponse registerClinic(RegisterClinicRequest request) {
+        User adminUser = User.builder()
+                .role(UserRole.ADMIN)
+                .active(true)
+                .emailVerified(false)
+                .build();
+        applyLegalConsent(
+                adminUser,
+                request.acceptedTerms(),
+                request.termsVersion(),
+                request.privacyVersion(),
+                RequestIpUtils.resolveCurrentClientIp()
+        );
+
         String normalizedEmail = EmailNormalizer.normalize(request.adminEmail());
         if (userRepository.existsByEmail(normalizedEmail)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Este e-mail já está cadastrado.");
@@ -121,13 +178,9 @@ public class AuthService {
             throw new IllegalArgumentException("O nome do administrador deve ter entre 3 e 120 caracteres.");
         }
 
-        User adminUser = User.builder()
-                .name(trimmedAdminName)
-                .email(normalizedEmail)
-                .passwordHash(passwordEncoder.encode(request.password()))
-                .role(UserRole.ADMIN)
-                .active(true)
-                .build();
+        adminUser.setName(trimmedAdminName);
+        adminUser.setEmail(normalizedEmail);
+        adminUser.setPasswordHash(passwordEncoder.encode(request.password()));
 
         User savedAdmin = userRepository.save(adminUser);
 
@@ -139,13 +192,12 @@ public class AuthService {
                 .build();
         clinicRepository.save(clinic);
 
-        String token = jwtService.generateToken(new UserPrincipal(savedAdmin));
+        issueAndSendEmailVerification(savedAdmin);
 
-        return new AuthResponse(
-                token,
-                savedAdmin.getName(),
+        return new RegisterPendingVerificationResponse(
+                "Cadastro realizado! Enviamos um link de confirmação para o seu e-mail.",
                 savedAdmin.getEmail(),
-                savedAdmin.getRole().name()
+                true
         );
     }
 
@@ -161,6 +213,14 @@ public class AuthService {
 
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
         User user = principal.getUser();
+
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Confirme seu e-mail antes de acessar a plataforma."
+            );
+        }
+
         String token = jwtService.generateToken(principal);
 
         return new AuthResponse(
@@ -169,5 +229,175 @@ public class AuthService {
                 user.getEmail(),
                 user.getRole().name()
         );
+    }
+
+    @Transactional
+    public MessageResponse verifyEmail(VerifyEmailRequest request) {
+        User user = consumeTokenAndLoadUser(request.token(), AuthTokenType.EMAIL_VERIFICATION);
+        user.setEmailVerified(true);
+        userRepository.save(user);
+
+        return new MessageResponse("E-mail confirmado com sucesso. Você já pode acessar a plataforma.");
+    }
+
+    @Transactional
+    public MessageResponse resendVerification(EmailActionRequest request) {
+        String normalizedEmail = EmailNormalizer.normalize(request.email());
+        userRepository.findByEmail(normalizedEmail).ifPresent(user -> {
+            if (Boolean.TRUE.equals(user.getActive()) && !Boolean.TRUE.equals(user.getEmailVerified())) {
+                authActionTokenRepository.invalidateActiveTokens(
+                        user.getId(),
+                        AuthTokenType.EMAIL_VERIFICATION,
+                        OffsetDateTime.now()
+                );
+                issueAndSendEmailVerification(user);
+            }
+        });
+
+        return new MessageResponse("Se o e-mail estiver cadastrado e pendente de confirmação, enviaremos um novo link.");
+    }
+
+    @Transactional
+    public MessageResponse forgotPassword(EmailActionRequest request) {
+        String normalizedEmail = EmailNormalizer.normalize(request.email());
+        userRepository.findByEmail(normalizedEmail).ifPresent(user -> {
+            if (Boolean.TRUE.equals(user.getActive())) {
+                authActionTokenRepository.invalidateActiveTokens(
+                        user.getId(),
+                        AuthTokenType.PASSWORD_RESET,
+                        OffsetDateTime.now()
+                );
+                String rawToken = issueToken(user, AuthTokenType.PASSWORD_RESET, PASSWORD_RESET_TTL);
+                String resetUrl = buildFrontendLink("/reset-password", rawToken);
+                eventPublisher.publishEvent(new EmailNotificationEvent(
+                        EmailNotificationEvent.Type.PASSWORD_RESET,
+                        user.getEmail(),
+                        user.getName(),
+                        resetUrl
+                ));
+            }
+        });
+
+        return new MessageResponse("Se o e-mail estiver cadastrado, enviaremos instruções para redefinir sua senha.");
+    }
+
+    @Transactional
+    public MessageResponse resetPassword(ResetPasswordRequest request) {
+        User user = consumeTokenAndLoadUser(request.token(), AuthTokenType.PASSWORD_RESET);
+
+        if (!Boolean.TRUE.equals(user.getActive())) {
+            throw new AccessDeniedException("Conta de usuário inativa.");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        int currentVersion = user.getTokenVersion() != null ? user.getTokenVersion() : 0;
+        user.setTokenVersion(currentVersion + 1);
+        userRepository.save(user);
+
+        auditLogService.record(
+                user.getId(),
+                user.getEmail(),
+                "AUTH_RESET_PASSWORD",
+                "USER",
+                user.getId().toString(),
+                null,
+                "Senha redefinida com sucesso via token de recuperação"
+        );
+
+        return new MessageResponse("Senha redefinida com sucesso.");
+    }
+
+    private void issueAndSendEmailVerification(User user) {
+        String rawToken = issueToken(user, AuthTokenType.EMAIL_VERIFICATION, EMAIL_VERIFICATION_TTL);
+        String verificationUrl = buildFrontendLink("/verify-email", rawToken);
+        eventPublisher.publishEvent(new EmailNotificationEvent(
+                EmailNotificationEvent.Type.EMAIL_VERIFICATION,
+                user.getEmail(),
+                user.getName(),
+                verificationUrl
+        ));
+    }
+
+    private String issueToken(User user, AuthTokenType tokenType, Duration ttl) {
+        byte[] randomBytes = new byte[32];
+        SECURE_RANDOM.nextBytes(randomBytes);
+        String rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
+
+        OffsetDateTime now = OffsetDateTime.now();
+        AuthActionToken entity = AuthActionToken.builder()
+                .user(user)
+                .tokenHash(sha256Hex(rawToken))
+                .tokenType(tokenType)
+                .expiresAt(now.plus(ttl))
+                .build();
+        authActionTokenRepository.save(entity);
+        return rawToken;
+    }
+
+    private User consumeTokenAndLoadUser(String rawToken, AuthTokenType expectedType) {
+        if (rawToken == null || rawToken.isBlank()) {
+            throw new IllegalArgumentException("Token inválido ou expirado.");
+        }
+        String hash = sha256Hex(rawToken.trim());
+        OffsetDateTime now = OffsetDateTime.now();
+
+        AuthActionToken actionToken = authActionTokenRepository.findByTokenHashAndTokenType(hash, expectedType)
+                .orElseThrow(() -> new IllegalArgumentException("Token inválido ou expirado."));
+        Long userId = actionToken.getUser().getId();
+
+        int affectedRows = authActionTokenRepository.consumeTokenIfValid(hash, expectedType, now);
+        if (affectedRows != 1) {
+            throw new IllegalArgumentException("Token inválido ou expirado.");
+        }
+
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Token inválido ou expirado."));
+    }
+
+    private String buildFrontendLink(String path, String rawToken) {
+        String base = (frontendUrl != null && !frontendUrl.isBlank()) ? frontendUrl.trim() : "http://localhost:5173";
+        if (base.endsWith("/")) {
+            base = base.substring(0, base.length() - 1);
+        }
+        return base + path + "?token=" + rawToken;
+    }
+
+    private void applyLegalConsent(
+            User user,
+            Boolean acceptedTerms,
+            String requestedTermsVersion,
+            String requestedPrivacyVersion,
+            String clientIp
+    ) {
+        if (!Boolean.TRUE.equals(acceptedTerms)) {
+            throw new IllegalArgumentException("É obrigatório aceitar os Termos de Uso e a Política de Privacidade.");
+        }
+        user.setTermsVersion(resolveAndValidateLegalVersion(requestedTermsVersion, currentTermsVersion, "Termos de Uso"));
+        user.setPrivacyVersion(resolveAndValidateLegalVersion(requestedPrivacyVersion, currentPrivacyVersion, "Política de Privacidade"));
+        user.setTermsAcceptedAt(OffsetDateTime.now());
+        user.setTermsAcceptedIp(clientIp);
+    }
+
+    private String resolveAndValidateLegalVersion(String requestedVersion, String currentVersion, String documentName) {
+        if (requestedVersion == null || requestedVersion.isBlank()) {
+            return currentVersion;
+        }
+        String trimmed = requestedVersion.trim();
+        if (!currentVersion.equals(trimmed)) {
+            throw new IllegalArgumentException(
+                    "Versão desatualizada ou inválida de " + documentName + ". Versão vigente: " + currentVersion + "."
+            );
+        }
+        return trimmed;
+    }
+
+    private static String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 indisponível", e);
+        }
     }
 }

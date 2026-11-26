@@ -46,6 +46,7 @@ public class AdminService {
     private final PatientPsychologistLinkRepository linkRepository;
     private final SessionRepository sessionRepository;
     private final LinkService linkService;
+    private final AuditLogService auditLogService;
 
     @Transactional(readOnly = true)
     public AdminDashboardResponse getDashboardMetrics(String adminEmail) {
@@ -189,7 +190,17 @@ public class AdminService {
         }
 
         targetUser.setActive(active);
-        return AdminUserStatusResponse.fromEntity(userRepository.save(targetUser));
+        User savedUser = userRepository.save(targetUser);
+        auditLogService.record(
+                adminUser.getId(),
+                adminUser.getEmail(),
+                "USER_STATUS_CHANGE",
+                "USER",
+                savedUser.getId().toString(),
+                clinic.getId(),
+                "active=" + active
+        );
+        return AdminUserStatusResponse.fromEntity(savedUser);
     }
 
     @Transactional(readOnly = true)
@@ -205,7 +216,9 @@ public class AdminService {
 
     @Transactional
     public SessionResponse resolveDisputedSession(String adminEmail, Long sessionId, SessionStatus resolutionStatus) {
-        Clinic clinic = resolveAdminClinic(adminEmail).clinic();
+        AdminContext context = resolveAdminClinic(adminEmail);
+        User adminUser = context.adminUser();
+        Clinic clinic = context.clinic();
 
         Session session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Sessão não encontrada."));
@@ -225,7 +238,17 @@ public class AdminService {
         }
 
         session.setStatus(resolutionStatus);
-        return SessionResponse.fromEntity(sessionRepository.save(session));
+        Session savedSession = sessionRepository.save(session);
+        auditLogService.record(
+                adminUser.getId(),
+                adminUser.getEmail(),
+                "SESSION_DISPUTE_RESOLVE",
+                "SESSION",
+                savedSession.getId().toString(),
+                clinic.getId(),
+                "resolution=" + resolutionStatus.name()
+        );
+        return SessionResponse.fromEntity(savedSession);
     }
 
     @Transactional(readOnly = true)
@@ -250,7 +273,9 @@ public class AdminService {
 
     @Transactional
     public NeutralActionResponse triagePatient(String adminEmail, AdminTriageRequest request) {
-        Clinic clinic = resolveAdminClinic(adminEmail).clinic();
+        AdminContext context = resolveAdminClinic(adminEmail);
+        User adminUser = context.adminUser();
+        Clinic clinic = context.clinic();
 
         ClinicPsychologist clinicPsych = clinicPsychologistRepository
                 .findByClinicIdAndPsychologistUserId(clinic.getId(), request.psychologistId())
@@ -265,7 +290,17 @@ public class AdminService {
             throw new IllegalArgumentException("Não é possível realizar triagem para um psicólogo com conta inativa.");
         }
 
-        return linkService.createPendingLinkIfEligible(psychologist, clinic, request.cpf());
+        NeutralActionResponse response = linkService.createPendingLinkIfEligible(psychologist, clinic, request.cpf());
+        auditLogService.record(
+                adminUser.getId(),
+                adminUser.getEmail(),
+                "TRIAGE_REQUEST",
+                "PATIENT_LINK",
+                psychologist.getUserId().toString(),
+                clinic.getId(),
+                "Triagem administrativa registrada para psicólogo"
+        );
+        return response;
     }
 
     private ClinicLinkResponse updatePsychologistRequestStatus(
@@ -273,7 +308,9 @@ public class AdminService {
             Long requestId,
             ClinicPsychologistStatus targetStatus
     ) {
-        Clinic clinic = resolveAdminClinic(adminEmail).clinic();
+        AdminContext context = resolveAdminClinic(adminEmail);
+        User adminUser = context.adminUser();
+        Clinic clinic = context.clinic();
 
         ClinicPsychologist link = clinicPsychologistRepository.findById(requestId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Solicitação de vínculo não encontrada."));
@@ -298,7 +335,20 @@ public class AdminService {
         }
 
         link.setStatus(targetStatus);
-        return ClinicLinkResponse.fromEntity(clinicPsychologistRepository.save(link));
+        ClinicPsychologist saved = clinicPsychologistRepository.save(link);
+        String action = targetStatus == ClinicPsychologistStatus.APPROVED
+                ? "CLINIC_PSYCHOLOGIST_APPROVE"
+                : "CLINIC_PSYCHOLOGIST_REJECT";
+        auditLogService.record(
+                adminUser.getId(),
+                adminUser.getEmail(),
+                action,
+                "CLINIC_PSYCHOLOGIST",
+                saved.getId().toString(),
+                clinic.getId(),
+                "psychologistUserId=" + saved.getPsychologist().getUserId()
+        );
+        return ClinicLinkResponse.fromEntity(saved);
     }
 
     private AdminContext resolveAdminClinic(String adminEmail) {

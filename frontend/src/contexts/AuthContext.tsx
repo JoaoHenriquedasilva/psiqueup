@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { api } from '../services/api';
-import type { AuthResponse, UserRole } from '../types/api';
+import type { AuthResponse, RegisterPendingVerificationResponse, UserRole } from '../types/api';
 import {
     clearStoredSession,
     getStoredToken,
@@ -8,6 +8,7 @@ import {
     saveStoredSession,
     type StoredUser,
 } from '../utils/authStorage';
+import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '../constants/legal';
 import { AuthContext, type RegisterClinicPayload } from './useAuth';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -35,20 +36,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password: string,
         role: 'PSYCHOLOGIST' | 'PATIENT',
         cpf?: string
-    ): Promise<UserRole> {
-        const { data } = await api.post<AuthResponse>('/auth/register', {
+    ): Promise<RegisterPendingVerificationResponse> {
+        const { data } = await api.post<RegisterPendingVerificationResponse>('/auth/register', {
             name,
             email,
             password,
             role,
             ...(cpf ? { cpf } : {}),
+            acceptedTerms: true,
+            termsVersion: CURRENT_TERMS_VERSION,
+            privacyVersion: CURRENT_PRIVACY_VERSION,
         });
-        return saveSession(data);
+        return data;
     }
 
-    async function registerClinic(payload: RegisterClinicPayload): Promise<UserRole> {
-        const { data } = await api.post<AuthResponse>('/auth/register-clinic', payload);
-        return saveSession(data);
+    async function registerClinic(
+        payload: RegisterClinicPayload
+    ): Promise<RegisterPendingVerificationResponse> {
+        const { data } = await api.post<RegisterPendingVerificationResponse>(
+            '/auth/register-clinic',
+            {
+                ...payload,
+                acceptedTerms: payload.acceptedTerms ?? true,
+                termsVersion: payload.termsVersion ?? CURRENT_TERMS_VERSION,
+                privacyVersion: payload.privacyVersion ?? CURRENT_PRIVACY_VERSION,
+            }
+        );
+        return data;
     }
 
     function logout() {

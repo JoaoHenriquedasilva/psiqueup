@@ -42,6 +42,7 @@ public class LinkService {
     private final SessionRepository sessionRepository;
     private final UserRepository userRepository;
     private final CpfCryptoService cpfCryptoService;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public NeutralActionResponse createLink(String psychologistEmail, CreateLinkRequest request) {
@@ -58,7 +59,17 @@ public class LinkService {
                 .map(ClinicPsychologist::getClinic)
                 .orElse(null);
 
-        return createPendingLinkIfEligible(psychologist, clinic, request.cpf());
+        NeutralActionResponse response = createPendingLinkIfEligible(psychologist, clinic, request.cpf());
+        auditLogService.record(
+                psychologistUser.getId(),
+                psychologistUser.getEmail(),
+                "LINK_REQUEST",
+                "PATIENT_LINK",
+                null,
+                clinic != null ? clinic.getId() : null,
+                "Solicitação de vínculo terapêutico registrada"
+        );
+        return response;
     }
 
     @Transactional
@@ -127,7 +138,17 @@ public class LinkService {
         }
 
         link.setStatus(LinkStatus.ACTIVE);
-        return LinkResponse.fromEntity(linkRepository.save(link));
+        PatientPsychologistLink saved = linkRepository.save(link);
+        auditLogService.record(
+                patientUser.getId(),
+                patientUser.getEmail(),
+                "LINK_ACCEPT",
+                "PATIENT_LINK",
+                saved.getId().toString(),
+                saved.getClinic() != null ? saved.getClinic().getId() : null,
+                "Paciente aceitou vínculo terapêutico"
+        );
+        return LinkResponse.fromEntity(saved);
     }
 
     @Transactional
@@ -164,7 +185,17 @@ public class LinkService {
             session.setStatus(SessionStatus.CANCELED);
         }
 
-        return LinkResponse.fromEntity(linkRepository.save(link));
+        PatientPsychologistLink saved = linkRepository.save(link);
+        auditLogService.record(
+                patientUser.getId(),
+                patientUser.getEmail(),
+                "LINK_REJECT",
+                "PATIENT_LINK",
+                saved.getId().toString(),
+                saved.getClinic() != null ? saved.getClinic().getId() : null,
+                "Paciente rejeitou vínculo terapêutico"
+        );
+        return LinkResponse.fromEntity(saved);
     }
 
     private User getActiveUserByEmail(String email) {

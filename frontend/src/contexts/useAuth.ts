@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { UserRole } from '../types/api';
+import type { RegisterPendingVerificationResponse, UserRole } from '../types/api';
 import type { StoredUser } from '../utils/authStorage';
 
 export interface RegisterClinicPayload {
@@ -8,6 +8,9 @@ export interface RegisterClinicPayload {
     adminName: string;
     adminEmail: string;
     password: string;
+    acceptedTerms?: boolean;
+    termsVersion?: string;
+    privacyVersion?: string;
 }
 
 export interface AuthContextData {
@@ -20,8 +23,8 @@ export interface AuthContextData {
         password: string,
         role: 'PSYCHOLOGIST' | 'PATIENT',
         cpf?: string
-    ) => Promise<UserRole>;
-    registerClinic: (payload: RegisterClinicPayload) => Promise<UserRole>;
+    ) => Promise<RegisterPendingVerificationResponse>;
+    registerClinic: (payload: RegisterClinicPayload) => Promise<RegisterPendingVerificationResponse>;
     logout: () => void;
 }
 
