@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Brain, CalendarCheck, HeartHandshake, ShieldCheck } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -110,8 +111,23 @@ export function AuthLayout({ title, subtitle, error, footer, children }: AuthLay
 
                     {children}
 
-                    <div className="mt-6 pt-5 border-t border-border-subtle text-center text-sm text-ink-secondary">
-                        {footer}
+                    <div className="mt-6 pt-5 border-t border-border-subtle text-center text-sm text-ink-secondary space-y-2.5">
+                        <div>{footer}</div>
+                        <div className="flex items-center justify-center gap-2.5 text-xs text-ink-secondary/80">
+                            <Link
+                                to="/terms"
+                                className="hover:text-primary-ink hover:underline transition"
+                            >
+                                Termos de Uso
+                            </Link>
+                            <span aria-hidden="true">•</span>
+                            <Link
+                                to="/privacy"
+                                className="hover:text-primary-ink hover:underline transition"
+                            >
+                                Política de Privacidade
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </main>
