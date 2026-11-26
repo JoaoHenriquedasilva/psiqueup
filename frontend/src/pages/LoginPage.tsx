@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Lock, Mail } from 'lucide-react';
+import { Lock, Mail, MailWarning } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
+import { FeedbackBanner } from '../components/FeedbackBanner';
 import { useAuth } from '../contexts/useAuth';
-import { extractApiErrorMessage } from '../utils/apiError';
+import { useResendVerification } from '../hooks/useResendVerification';
+import { extractApiErrorMessage, isApiHttpStatus } from '../utils/apiError';
 import { getHomeRouteByRole } from '../utils/authRoutes';
 
 export function LoginPage() {
@@ -15,9 +17,16 @@ export function LoginPage() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
+    const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+    const { resending, resendFeedback, setResendFeedback, resendVerification } =
+        useResendVerification();
+
     async function handleSubmit(e: FormEvent) {
         e.preventDefault();
         setError('');
+        setUnverifiedEmail(null);
+        setResendFeedback(null);
+
         const normalizedEmail = email.trim();
         if (!normalizedEmail) {
             setError('O e-mail é obrigatório.');
@@ -29,10 +38,19 @@ export function LoginPage() {
             const role = await login(normalizedEmail, password);
             navigate(getHomeRouteByRole(role), { replace: true });
         } catch (err: unknown) {
-            setError(extractApiErrorMessage(err, 'E-mail ou senha inválidos.'));
+            if (isApiHttpStatus(err, 403)) {
+                setUnverifiedEmail(normalizedEmail);
+            } else {
+                setError(extractApiErrorMessage(err, 'E-mail ou senha inválidos.'));
+            }
         } finally {
             setLoading(false);
         }
+    }
+
+    async function handleResendVerification() {
+        if (!unverifiedEmail) return;
+        await resendVerification(unverifiedEmail);
     }
 
     return (
@@ -52,6 +70,43 @@ export function LoginPage() {
                 </>
             }
         >
+            {unverifiedEmail && (
+                <div
+                    role="alert"
+                    className="mb-5 rounded-xl bg-warning-bg border border-warning-border border-l-4 border-l-warning-ink p-4 text-sm text-warning-ink space-y-2.5"
+                >
+                    <div className="flex items-start gap-2.5">
+                        <MailWarning className="h-4 w-4 shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                            <p className="font-semibold">Confirme seu e-mail antes de entrar</p>
+                            <p className="text-xs leading-relaxed opacity-90">
+                                Enviamos um link de confirmação para{' '}
+                                <span className="font-semibold">{unverifiedEmail}</span>. Confira
+                                sua caixa de entrada e a pasta de spam.
+                            </p>
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={handleResendVerification}
+                        disabled={resending}
+                        className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-warning-solid hover:bg-warning-solid-hover text-white disabled:opacity-60 transition cursor-pointer"
+                    >
+                        {resending ? 'Reenviando...' : 'Reenviar e-mail de verificação'}
+                    </button>
+
+                    {resendFeedback && (
+                        <div className="pt-1">
+                            <FeedbackBanner
+                                feedback={resendFeedback}
+                                onClose={() => setResendFeedback(null)}
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                     <label
@@ -76,12 +131,20 @@ export function LoginPage() {
                 </div>
 
                 <div>
-                    <label
-                        htmlFor="login-password"
-                        className="block text-sm font-medium text-ink mb-1.5"
-                    >
-                        Senha
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                        <label
+                            htmlFor="login-password"
+                            className="block text-sm font-medium text-ink"
+                        >
+                            Senha
+                        </label>
+                        <Link
+                            to="/forgot-password"
+                            className="text-xs font-medium text-primary-ink hover:underline transition"
+                        >
+                            Esqueci minha senha?
+                        </Link>
+                    </div>
                     <div className="relative">
                         <Lock className="h-4 w-4 text-ink-secondary absolute left-3.5 top-3" />
                         <input

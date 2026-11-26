@@ -14,6 +14,13 @@ export function extractApiErrorMessage(error: unknown, fallback: string): string
         return 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.';
     }
 
+    if (error.response.status === 429) {
+        return (
+            error.response.data?.message ||
+            'Muitas tentativas em sequência. Aguarde alguns instantes e tente novamente.'
+        );
+    }
+
     const data = error.response.data;
     if (!data) {
         return fallback;

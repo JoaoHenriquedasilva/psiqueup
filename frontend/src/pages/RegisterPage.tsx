@@ -1,18 +1,20 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Building2, FileText, HeartHandshake, Lock, Mail, Stethoscope, User } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
+import { FeedbackBanner } from '../components/FeedbackBanner';
+import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '../constants/legal';
 import { useAuth } from '../contexts/useAuth';
 import { useCnpjField } from '../hooks/useCnpjField';
 import { useCpfField } from '../hooks/useCpfField';
+import { useResendVerification } from '../hooks/useResendVerification';
+import type { RegisterPendingVerificationResponse } from '../types/api';
 import { extractApiErrorMessage } from '../utils/apiError';
-import { getHomeRouteByRole } from '../utils/authRoutes';
 
 type RegisterProfileMode = 'PATIENT' | 'PSYCHOLOGIST' | 'CLINIC';
 
 export function RegisterPage() {
     const { register, registerClinic } = useAuth();
-    const navigate = useNavigate();
 
     const [profileMode, setProfileMode] = useState<RegisterProfileMode>('PATIENT');
     const [clinicName, setClinicName] = useState('');
@@ -21,8 +23,15 @@ export function RegisterPage() {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [acceptedTerms, setAcceptedTerms] = useState(false);
+    const [termsError, setTermsError] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    const [pendingVerification, setPendingVerification] =
+        useState<RegisterPendingVerificationResponse | null>(null);
+    const { resending, resendFeedback, setResendFeedback, resendVerification } =
+        useResendVerification();
 
     const isClinicMode = profileMode === 'CLINIC';
     const isPatientMode = profileMode === 'PATIENT';
@@ -70,15 +79,23 @@ export function RegisterPage() {
             return;
         }
 
+        if (!acceptedTerms) {
+            setTermsError(true);
+            return;
+        }
+
         setLoading(true);
         try {
-            const createdRole = isClinicMode
+            const response = isClinicMode
                 ? await registerClinic({
                       clinicName: clinicName.trim(),
                       cnpj: cnpjField.strippedValue,
                       adminName: trimmedName,
                       adminEmail: trimmedEmail,
                       password,
+                      acceptedTerms: true,
+                      termsVersion: CURRENT_TERMS_VERSION,
+                      privacyVersion: CURRENT_PRIVACY_VERSION,
                   })
                 : await register(
                       trimmedName,
@@ -87,12 +104,79 @@ export function RegisterPage() {
                       profileMode,
                       isPatientMode ? cpfField.strippedCpf : undefined
                   );
-            navigate(getHomeRouteByRole(createdRole), { replace: true });
+            setPendingVerification(response);
         } catch (err: unknown) {
             setError(extractApiErrorMessage(err, 'Não foi possível concluir o cadastro.'));
         } finally {
             setLoading(false);
         }
+    }
+
+    async function handleResendConfirmation() {
+        if (!pendingVerification) return;
+        await resendVerification(pendingVerification.email);
+    }
+
+    if (pendingVerification) {
+        return (
+            <AuthLayout
+                title="Quase lá! Confirme seu e-mail"
+                subtitle="Ative sua conta para acessar a plataforma"
+                footer={
+                    <>
+                        Já confirmou seu e-mail?{' '}
+                        <Link
+                            to="/login"
+                            className="font-semibold text-primary-ink hover:underline transition"
+                        >
+                            Ir para a tela de login
+                        </Link>
+                    </>
+                }
+            >
+                <div className="text-center space-y-4">
+                    <div className="h-12 w-12 rounded-2xl bg-primary-tint text-primary-ink border border-primary-tint-border flex items-center justify-center mx-auto">
+                        <Mail className="h-6 w-6" />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <p className="text-sm text-ink-secondary leading-relaxed">
+                            Enviamos um link de confirmação para o e-mail:
+                        </p>
+                        <p className="text-sm font-semibold text-ink bg-subsurface border border-border-subtle rounded-xl px-3 py-2 break-all">
+                            {pendingVerification.email}
+                        </p>
+                        <p className="text-xs text-ink-secondary leading-relaxed pt-1">
+                            Abra sua caixa de entrada (ou pasta de spam) e clique no link para
+                            concluir a verificação.
+                        </p>
+                    </div>
+
+                    <FeedbackBanner
+                        feedback={resendFeedback}
+                        onClose={() => setResendFeedback(null)}
+                    />
+
+                    <div className="space-y-2.5 pt-2">
+                        <button
+                            type="button"
+                            onClick={handleResendConfirmation}
+                            disabled={resending}
+                            className="w-full py-2.5 px-4 bg-subsurface hover:bg-subsurface-muted border border-border-subtle text-ink font-semibold rounded-xl text-sm disabled:opacity-60 transition cursor-pointer"
+                        >
+                            {resending ? 'Reenviando...' : 'Reenviar e-mail de confirmação'}
+                        </button>
+
+                        <Link
+                            to="/login"
+                            className="block w-full py-2.5 px-4 bg-primary hover:bg-primary-hover text-white font-semibold rounded-xl text-sm text-center transition"
+                        >
+                            Ir para a tela de login
+                        </Link>
+                    </div>
+                </div>
+            </AuthLayout>
+        );
     }
 
     return (
@@ -366,6 +450,56 @@ export function RegisterPage() {
                             className="w-full pl-10 pr-3 py-2.5 bg-subsurface border border-border-subtle rounded-xl text-sm text-ink placeholder:text-ink-secondary/60 focus:bg-surface focus:outline-none focus:ring-2 focus:ring-primary-ink/20 focus:border-primary-ink transition"
                         />
                     </div>
+                </div>
+
+                <div
+                    className={`rounded-xl p-3 border transition ${
+                        termsError
+                            ? 'bg-danger-bg/60 border-danger-border'
+                            : 'bg-subsurface/60 border-border-subtle'
+                    }`}
+                >
+                    <label className="flex items-start gap-2.5 cursor-pointer text-xs text-ink-secondary leading-relaxed">
+                        <input
+                            id="register-accepted-terms"
+                            type="checkbox"
+                            checked={acceptedTerms}
+                            onChange={(e) => {
+                                setAcceptedTerms(e.target.checked);
+                                if (e.target.checked) {
+                                    setTermsError(false);
+                                }
+                            }}
+                            className="mt-0.5 h-4 w-4 rounded border-border-subtle text-primary-ink focus:ring-primary-ink/25 cursor-pointer shrink-0"
+                        />
+                        <span>
+                            Li e concordo com os{' '}
+                            <Link
+                                to="/terms"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold text-primary-ink hover:underline"
+                            >
+                                Termos de Uso
+                            </Link>{' '}
+                            e a{' '}
+                            <Link
+                                to="/privacy"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-semibold text-primary-ink hover:underline"
+                            >
+                                Política de Privacidade
+                            </Link>
+                            .
+                        </span>
+                    </label>
+                    {termsError && (
+                        <p className="text-xs text-danger-ink mt-1.5 font-medium">
+                            Você precisa concordar com os Termos de Uso e a Política de Privacidade
+                            para criar sua conta.
+                        </p>
+                    )}
                 </div>
 
                 <button

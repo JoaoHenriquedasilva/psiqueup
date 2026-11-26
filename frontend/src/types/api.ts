@@ -11,6 +11,16 @@ export interface AuthResponse {
     role: UserRole;
 }
 
+export interface RegisterPendingVerificationResponse {
+    message: string;
+    email: string;
+    verificationRequired: boolean;
+}
+
+export interface MessageResponse {
+    message: string;
+}
+
 export interface TherapeuticApproach {
     id: number;
     name: string;
