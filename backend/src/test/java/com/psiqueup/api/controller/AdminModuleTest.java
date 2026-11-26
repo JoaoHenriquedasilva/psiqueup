@@ -177,23 +177,32 @@ class AdminModuleTest {
         return savedAdmin;
     }
 
+    private com.psiqueup.api.dto.auth.AuthResponse registerAndVerify(
+            String name, String email, String password, PublicUserRole role, String cpf) {
+        authService.register(new RegisterRequest(name, email, password, role, cpf, true, null, null));
+        User user = userRepository.findByEmail(email.trim().toLowerCase()).orElseThrow();
+        user.setEmailVerified(true);
+        userRepository.save(user);
+        return authService.login(new com.psiqueup.api.dto.auth.LoginRequest(email, password));
+    }
+
     @Test
     void shouldDenyAdminEndpointsForPatientAndPsychologist() throws Exception {
         String suffix = uniqueSuffix();
-        var patientAuth = authService.register(new RegisterRequest(
+        var patientAuth = registerAndVerify(
                 "Paciente Bloqueado",
                 "pat.block." + suffix + "@psiqueup.test",
                 "secret123",
                 PublicUserRole.PATIENT,
                 uniqueCpf()
-        ));
-        var psychAuth = authService.register(new RegisterRequest(
+        );
+        var psychAuth = registerAndVerify(
                 "Psicologo Bloqueado",
                 "psy.block." + suffix + "@psiqueup.test",
                 "secret123",
                 PublicUserRole.PSYCHOLOGIST,
                 null
-        ));
+        );
 
         mockMvc().perform(get("/api/admin/dashboard")
                         .header("Authorization", "Bearer " + patientAuth.token()))
@@ -215,9 +224,9 @@ class AdminModuleTest {
         String patientEmail = "pat.ok." + suffix + "@psiqueup.test";
         String patientCpf = uniqueCpf();
 
-        var psychAuth = authService.register(new RegisterRequest("Dra. Clara", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
-        authService.register(new RegisterRequest("Dr. Pendente", pendingPsychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
-        authService.register(new RegisterRequest("Carlos Paciente", patientEmail, "secret123", PublicUserRole.PATIENT, patientCpf));
+        var psychAuth = registerAndVerify("Dra. Clara", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
+        registerAndVerify("Dr. Pendente", pendingPsychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
+        registerAndVerify("Carlos Paciente", patientEmail, "secret123", PublicUserRole.PATIENT, patientCpf);
 
         String crp = uniqueCrp();
         profileDomainService.upsertPsychologistProfile(psychEmail, new UpsertPsychologistProfileRequest(crp, 1L, "TCC"));
@@ -298,7 +307,7 @@ class AdminModuleTest {
         Clinic clinic = clinicRepository.findByOwnerUserId(admin.getId()).orElseThrow();
 
         String psychEmail = "psy.anti." + suffix + "@psiqueup.test";
-        authService.register(new RegisterRequest("Dr. Anti", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        registerAndVerify("Dr. Anti", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
         String crp = uniqueCrp();
         profileDomainService.upsertPsychologistProfile(psychEmail, new UpsertPsychologistProfileRequest(crp, 1L, "TCC"));
         User psychUser = userRepository.findByEmail(psychEmail).orElseThrow();
@@ -307,7 +316,7 @@ class AdminModuleTest {
         // Psicólogo cria vínculo e sessão autônoma ANTES de entrar na clínica (clinic_id = null)
         String patAutoEmail = "pat.auto.hist." + suffix + "@psiqueup.test";
         String patAutoCpf = uniqueCpf();
-        authService.register(new RegisterRequest("Paciente Autônomo", patAutoEmail, "secret123", PublicUserRole.PATIENT, patAutoCpf));
+        registerAndVerify("Paciente Autônomo", patAutoEmail, "secret123", PublicUserRole.PATIENT, patAutoCpf);
         linkService.createLink(psychEmail, new CreateLinkRequest(patAutoCpf));
         LinkResponse autoPending = linkService.listMyLinks(patAutoEmail).getFirst();
         LinkResponse autoLink = linkService.acceptLink(patAutoEmail, autoPending.id());
@@ -372,7 +381,7 @@ class AdminModuleTest {
 
         String inactivePatEmail = "pat.inativo." + suffix + "@psiqueup.test";
         String inactivePatCpf = uniqueCpf();
-        authService.register(new RegisterRequest("Paciente Inativo", inactivePatEmail, "secret123", PublicUserRole.PATIENT, inactivePatCpf));
+        registerAndVerify("Paciente Inativo", inactivePatEmail, "secret123", PublicUserRole.PATIENT, inactivePatCpf);
         User inactivePat = userRepository.findByEmail(inactivePatEmail).orElseThrow();
         inactivePat.setActive(false);
         userRepository.save(inactivePat);

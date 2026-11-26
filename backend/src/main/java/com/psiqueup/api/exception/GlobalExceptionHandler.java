@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.validation.FieldError;
@@ -83,9 +84,9 @@ public class GlobalExceptionHandler {
         );
     }
 
-    @ExceptionHandler(BadCredentialsException.class)
+    @ExceptionHandler({BadCredentialsException.class, DisabledException.class})
     public ResponseEntity<ErrorResponse> handleBadCredentials(
-            BadCredentialsException ex,
+            AuthenticationException ex,
             HttpServletRequest request
     ) {
         return buildErrorResponse(HttpStatus.UNAUTHORIZED, "E-mail ou senha inválidos.", request);
