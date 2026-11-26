@@ -93,19 +93,29 @@ class DomainRulesTest {
                 rawPsychEmail,
                 "secret123",
                 PublicUserRole.PSYCHOLOGIST,
+                null,
+                true,
+                null,
                 null
         ));
         assertThat(psychAuth.email()).isEqualTo("dra.psicologa." + suffix + "@psiqueup.test");
-        assertThat(psychAuth.name()).isEqualTo("Dra. Psicologa");
+        assertThat(psychAuth.verificationRequired()).isTrue();
 
         var patientAuth = authService.register(new RegisterRequest(
                 "Carlos Paciente",
                 rawPatientEmail,
                 "secret123",
                 PublicUserRole.PATIENT,
-                patientCpf
+                patientCpf,
+                true,
+                null,
+                null
         ));
         assertThat(patientAuth.email()).isEqualTo("paciente.teste." + suffix + "@psiqueup.test");
+
+        User patientEntity = userRepository.findByEmail(patientAuth.email()).orElseThrow();
+        patientEntity.setEmailVerified(true);
+        userRepository.save(patientEntity);
 
         // Login com variação de caixa e espaços
         var loginRes = authService.login(new LoginRequest("  PACIENTE.TESTE." + suffix + "@psiqueup.test ", "secret123"));
@@ -140,8 +150,8 @@ class DomainRulesTest {
         String patientEmail = "patient." + suffix + "@psiqueup.test";
         String patientCpf = uniqueCpf();
 
-        authService.register(new RegisterRequest("Psicologo", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
-        authService.register(new RegisterRequest("Paciente", patientEmail, "secret123", PublicUserRole.PATIENT, patientCpf));
+        authService.register(new RegisterRequest("Psicologo", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null, true, null, null));
+        authService.register(new RegisterRequest("Paciente", patientEmail, "secret123", PublicUserRole.PATIENT, patientCpf, true, null, null));
 
         profileDomainService.upsertPsychologistProfile(
                 psychEmail,
@@ -225,8 +235,8 @@ class DomainRulesTest {
         String patientEmail = "patient.rej." + suffix + "@psiqueup.test";
         String patientCpf = uniqueCpf();
 
-        authService.register(new RegisterRequest("Psicologo", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
-        authService.register(new RegisterRequest("Paciente", patientEmail, "secret123", PublicUserRole.PATIENT, patientCpf));
+        authService.register(new RegisterRequest("Psicologo", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null, true, null, null));
+        authService.register(new RegisterRequest("Paciente", patientEmail, "secret123", PublicUserRole.PATIENT, patientCpf, true, null, null));
 
         // Paciente tentando criar vínculo deve receber 403 AccessDeniedException
         assertThatThrownBy(() -> linkService.createLink(patientEmail, new CreateLinkRequest(patientCpf)))

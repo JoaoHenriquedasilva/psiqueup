@@ -176,6 +176,15 @@ class PatientConsentAndCpfTest {
         }
     }
 
+    private com.psiqueup.api.dto.auth.AuthResponse registerAndVerify(
+            String name, String email, String password, PublicUserRole role, String cpf) {
+        authService.register(new RegisterRequest(name, email, password, role, cpf, true, null, null));
+        User user = userRepository.findByEmail(email.trim().toLowerCase()).orElseThrow();
+        user.setEmailVerified(true);
+        userRepository.save(user);
+        return authService.login(new LoginRequest(email, password));
+    }
+
     @Test
     void shouldRequireValidUniqueCpfOnPatientRegisterAndSupportLegacyPatientProfileCompletion() throws Exception {
         String suffix = uniqueSuffix();
@@ -190,7 +199,8 @@ class PatientConsentAndCpfTest {
                                   "name": "Paciente Sem CPF",
                                   "email": "%s",
                                   "password": "secret123",
-                                  "role": "PATIENT"
+                                  "role": "PATIENT",
+                                  "acceptedTerms": true
                                 }
                                 """.formatted(patEmail)))
                 .andExpect(status().isBadRequest());
@@ -204,7 +214,8 @@ class PatientConsentAndCpfTest {
                                   "email": "%s",
                                   "password": "secret123",
                                   "role": "PATIENT",
-                                  "cpf": "000.000.000-00"
+                                  "cpf": "000.000.000-00",
+                                  "acceptedTerms": true
                                 }
                                 """.formatted(patEmail)))
                 .andExpect(status().isBadRequest())
@@ -219,11 +230,12 @@ class PatientConsentAndCpfTest {
                                   "email": "%s",
                                   "password": "secret123",
                                   "role": "PATIENT",
-                                  "cpf": "%s"
+                                  "cpf": "%s",
+                                  "acceptedTerms": true
                                 }
                                 """.formatted(patEmail, formatCpf(patCpf))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.role").value("PATIENT"));
+                .andExpect(jsonPath("$.verificationRequired").value(true));
 
         User savedPat = userRepository.findByEmail(patEmail).orElseThrow();
         PatientProfile savedProfile = patientProfileRepository.findById(savedPat.getId()).orElseThrow();
@@ -239,7 +251,8 @@ class PatientConsentAndCpfTest {
                                   "email": "dup.%s@psiqueup.test",
                                   "password": "secret123",
                                   "role": "PATIENT",
-                                  "cpf": "%s"
+                                  "cpf": "%s",
+                                  "acceptedTerms": true
                                 }
                                 """.formatted(suffix, patCpf)))
                 .andExpect(status().isConflict())
@@ -253,6 +266,7 @@ class PatientConsentAndCpfTest {
                 .passwordHash(passwordEncoder.encode("secret123"))
                 .role(UserRole.PATIENT)
                 .active(true)
+                .emailVerified(true)
                 .build());
         patientProfileRepository.save(PatientProfile.builder().user(legacyUser).build());
 
@@ -289,8 +303,8 @@ class PatientConsentAndCpfTest {
                 .andExpect(status().isConflict());
 
         // Psicólogo tentando acessar /api/profiles/patient/me -> 403 Forbidden
-        var psychAuth = authService.register(new RegisterRequest(
-                "Dra. Teste", "psy.prof." + suffix + "@psiqueup.test", "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        var psychAuth = registerAndVerify(
+                "Dra. Teste", "psy.prof." + suffix + "@psiqueup.test", "secret123", PublicUserRole.PSYCHOLOGIST, null);
         mockMvc().perform(get("/api/profiles/patient/me")
                         .header("Authorization", "Bearer " + psychAuth.token()))
                 .andExpect(status().isForbidden());
@@ -309,10 +323,10 @@ class PatientConsentAndCpfTest {
         String inactivePatCpf = uniqueCpf();
         String nonExistentCpf = uniqueCpf();
 
-        var psychAuth = authService.register(new RegisterRequest("Dra. Consent", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
-        var patAuth = authService.register(new RegisterRequest("Paciente Consent", patEmail, "secret123", PublicUserRole.PATIENT, patCpf));
-        var otherPatAuth = authService.register(new RegisterRequest("Outro Paciente", otherPatEmail, "secret123", PublicUserRole.PATIENT, otherPatCpf));
-        authService.register(new RegisterRequest("Paciente Inativo", inactivePatEmail, "secret123", PublicUserRole.PATIENT, inactivePatCpf));
+        var psychAuth = registerAndVerify("Dra. Consent", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
+        var patAuth = registerAndVerify("Paciente Consent", patEmail, "secret123", PublicUserRole.PATIENT, patCpf);
+        var otherPatAuth = registerAndVerify("Outro Paciente", otherPatEmail, "secret123", PublicUserRole.PATIENT, otherPatCpf);
+        registerAndVerify("Paciente Inativo", inactivePatEmail, "secret123", PublicUserRole.PATIENT, inactivePatCpf);
 
         User inactiveUser = userRepository.findByEmail(inactivePatEmail).orElseThrow();
         inactiveUser.setActive(false);
@@ -472,6 +486,7 @@ class PatientConsentAndCpfTest {
                 .passwordHash(passwordEncoder.encode("secret123"))
                 .role(UserRole.ADMIN)
                 .active(true)
+                .emailVerified(true)
                 .build());
         String cnpj = String.format("%014d", 20000000000000L + Math.abs(suffix.hashCode() % 999999));
         Clinic clinic = clinicRepository.save(Clinic.builder()
@@ -481,7 +496,7 @@ class PatientConsentAndCpfTest {
                 .active(true)
                 .build());
 
-        var psychAuth = authService.register(new RegisterRequest("Dra. Triagem", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null));
+        var psychAuth = registerAndVerify("Dra. Triagem", psychEmail, "secret123", PublicUserRole.PSYCHOLOGIST, null);
         profileDomainService.upsertPsychologistProfile(
                 psychEmail,
                 new UpsertPsychologistProfileRequest(uniqueCrp(), 1L, "TCC")
@@ -494,7 +509,7 @@ class PatientConsentAndCpfTest {
                 .status(ClinicPsychologistStatus.APPROVED)
                 .build());
 
-        var patAuth = authService.register(new RegisterRequest("Paciente Triagem", patEmail, "secret123", PublicUserRole.PATIENT, patCpf));
+        var patAuth = registerAndVerify("Paciente Triagem", patEmail, "secret123", PublicUserRole.PATIENT, patCpf);
         Long patId = userRepository.findByEmail(patEmail).orElseThrow().getId();
         var adminAuth = authService.login(new LoginRequest(adminEmail, "secret123"));
 

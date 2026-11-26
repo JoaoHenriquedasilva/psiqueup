@@ -65,6 +65,7 @@ public class AdminBootstrapRunner implements ApplicationRunner {
                     .passwordHash(passwordEncoder.encode(adminPassword))
                     .role(UserRole.ADMIN)
                     .active(true)
+                    .emailVerified(true)
                     .build());
             log.info("Initial ADMIN account provisioned for {}", normalizedEmail);
         } else if (admin.getRole() != UserRole.ADMIN) {

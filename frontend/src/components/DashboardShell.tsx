@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { Brain, LogOut, Menu, X, type LucideIcon } from 'lucide-react';
 import { useAuth } from '../contexts/useAuth';
 import { FeedbackBanner, type FeedbackMessage } from './FeedbackBanner';
@@ -180,8 +180,8 @@ export function DashboardShell({
             )}
 
             {/* Conteúdo Principal */}
-            <div className="lg:pl-64">
-                <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+            <div className="lg:pl-64 min-h-screen flex flex-col">
+                <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
                             <h1 className="font-display text-2xl font-bold text-ink tracking-tight">
@@ -196,6 +196,25 @@ export function DashboardShell({
 
                     {children}
                 </main>
+
+                <footer className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 border-t border-border-subtle/70 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-secondary">
+                    <span>PsiqueUp • Gestão Terapêutica</span>
+                    <div className="flex items-center gap-3">
+                        <Link
+                            to="/terms"
+                            className="hover:text-primary-ink hover:underline transition"
+                        >
+                            Termos de Uso
+                        </Link>
+                        <span aria-hidden="true">•</span>
+                        <Link
+                            to="/privacy"
+                            className="hover:text-primary-ink hover:underline transition"
+                        >
+                            Política de Privacidade
+                        </Link>
+                    </div>
+                </footer>
             </div>
         </div>
     );

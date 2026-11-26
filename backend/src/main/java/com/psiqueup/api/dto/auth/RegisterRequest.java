@@ -2,6 +2,7 @@ package com.psiqueup.api.dto.auth;
 
 import com.psiqueup.api.domain.enums.PublicUserRole;
 import com.psiqueup.api.validation.Cpf;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -25,6 +26,16 @@ public record RegisterRequest(
         PublicUserRole role,
 
         @Cpf
-        String cpf
+        String cpf,
+
+        @NotNull(message = "É obrigatório aceitar os Termos de Uso e a Política de Privacidade.")
+        @AssertTrue(message = "É obrigatório aceitar os Termos de Uso e a Política de Privacidade.")
+        Boolean acceptedTerms,
+
+        @Size(max = 30, message = "A versão dos termos deve ter no máximo 30 caracteres")
+        String termsVersion,
+
+        @Size(max = 30, message = "A versão da política de privacidade deve ter no máximo 30 caracteres")
+        String privacyVersion
 ) {
 }
