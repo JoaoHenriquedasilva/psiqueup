@@ -25,6 +25,7 @@ import com.psiqueup.api.security.UserPrincipal;
 import com.psiqueup.api.util.CnpjUtils;
 import com.psiqueup.api.util.CpfUtils;
 import com.psiqueup.api.util.EmailNormalizer;
+import com.psiqueup.api.util.HashUtils;
 import com.psiqueup.api.util.RequestIpUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,14 +40,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Base64;
-import java.util.HexFormat;
 
 @Service
 @RequiredArgsConstructor
@@ -66,6 +63,14 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogService auditLogService;
+    private final RefreshTokenService refreshTokenService;
+
+    public record AuthSession(
+            AuthResponse user,
+            String accessToken,
+            String refreshToken
+    ) {
+    }
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
@@ -201,8 +206,13 @@ public class AuthService {
         );
     }
 
-    @Transactional(readOnly = true)
-    public AuthResponse login(LoginRequest request) {
+    @Transactional
+    public AuthSession login(LoginRequest request) {
+        return login(request, RequestIpUtils.resolveCurrentClientIp());
+    }
+
+    @Transactional
+    public AuthSession login(LoginRequest request, String clientIp) {
         String normalizedEmail = EmailNormalizer.normalize(request.email());
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -221,14 +231,34 @@ public class AuthService {
             );
         }
 
-        String token = jwtService.generateToken(principal);
+        String accessToken = jwtService.generateToken(principal);
+        String refreshToken = refreshTokenService.issueRefreshToken(user, clientIp);
 
-        return new AuthResponse(
-                token,
-                user.getName(),
-                user.getEmail(),
-                user.getRole().name()
+        return new AuthSession(
+                new AuthResponse(user.getName(), user.getEmail(), user.getRole().name()),
+                accessToken,
+                refreshToken
         );
+    }
+
+    @Transactional(noRollbackFor = ResponseStatusException.class)
+    public AuthSession refresh(String rawRefreshToken, String clientIp) {
+        RefreshTokenService.RotationResult rotation = refreshTokenService.rotate(rawRefreshToken, clientIp);
+        User user = rotation.user();
+        UserPrincipal principal = new UserPrincipal(user);
+        String accessToken = jwtService.generateToken(principal);
+
+        return new AuthSession(
+                new AuthResponse(user.getName(), user.getEmail(), user.getRole().name()),
+                accessToken,
+                rotation.refreshToken()
+        );
+    }
+
+    @Transactional
+    public MessageResponse logout(String rawRefreshToken) {
+        refreshTokenService.revokeToken(rawRefreshToken);
+        return new MessageResponse("Sessão encerrada com sucesso.");
     }
 
     @Transactional
@@ -293,6 +323,7 @@ public class AuthService {
         int currentVersion = user.getTokenVersion() != null ? user.getTokenVersion() : 0;
         user.setTokenVersion(currentVersion + 1);
         userRepository.save(user);
+        refreshTokenService.revokeAllForUser(user.getId());
 
         auditLogService.record(
                 user.getId(),
@@ -326,7 +357,7 @@ public class AuthService {
         OffsetDateTime now = OffsetDateTime.now();
         AuthActionToken entity = AuthActionToken.builder()
                 .user(user)
-                .tokenHash(sha256Hex(rawToken))
+                .tokenHash(HashUtils.sha256Hex(rawToken))
                 .tokenType(tokenType)
                 .expiresAt(now.plus(ttl))
                 .build();
@@ -338,7 +369,7 @@ public class AuthService {
         if (rawToken == null || rawToken.isBlank()) {
             throw new IllegalArgumentException("Token inválido ou expirado.");
         }
-        String hash = sha256Hex(rawToken.trim());
+        String hash = HashUtils.sha256Hex(rawToken.trim());
         OffsetDateTime now = OffsetDateTime.now();
 
         AuthActionToken actionToken = authActionTokenRepository.findByTokenHashAndTokenType(hash, expectedType)
@@ -389,15 +420,5 @@ public class AuthService {
             );
         }
         return trimmed;
-    }
-
-    private static String sha256Hex(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 indisponível", e);
-        }
     }
 }

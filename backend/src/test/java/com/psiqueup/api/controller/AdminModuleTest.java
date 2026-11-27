@@ -177,13 +177,13 @@ class AdminModuleTest {
         return savedAdmin;
     }
 
-    private com.psiqueup.api.dto.auth.AuthResponse registerAndVerify(
+    private AuthService.AuthSession registerAndVerify(
             String name, String email, String password, PublicUserRole role, String cpf) {
         authService.register(new RegisterRequest(name, email, password, role, cpf, true, null, null));
         User user = userRepository.findByEmail(email.trim().toLowerCase()).orElseThrow();
         user.setEmailVerified(true);
         userRepository.save(user);
-        return authService.login(new com.psiqueup.api.dto.auth.LoginRequest(email, password));
+        return authService.login(new com.psiqueup.api.dto.auth.LoginRequest(email, password), "127.0.0.1");
     }
 
     @Test
@@ -205,11 +205,11 @@ class AdminModuleTest {
         );
 
         mockMvc().perform(get("/api/admin/dashboard")
-                        .header("Authorization", "Bearer " + patientAuth.token()))
+                        .header("Authorization", "Bearer " + patientAuth.accessToken()))
                 .andExpect(status().isForbidden());
 
         mockMvc().perform(get("/api/admin/psychologists")
-                        .header("Authorization", "Bearer " + psychAuth.token()))
+                        .header("Authorization", "Bearer " + psychAuth.accessToken()))
                 .andExpect(status().isForbidden());
     }
 
@@ -288,7 +288,7 @@ class AdminModuleTest {
                 .andExpect(jsonPath("$.active").value(false));
 
         mockMvc().perform(get("/api/users/me")
-                        .header("Authorization", "Bearer " + psychAuth.token()))
+                        .header("Authorization", "Bearer " + psychAuth.accessToken()))
                 .andExpect(status().isUnauthorized());
 
         // 5. Admin não pode desativar a própria conta
