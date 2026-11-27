@@ -1,6 +1,11 @@
 import { createContext, useContext } from 'react';
 import type { RegisterPendingVerificationResponse, UserRole } from '../types/api';
-import type { StoredUser } from '../utils/authStorage';
+
+export interface AuthUser {
+    name: string;
+    email: string;
+    role: UserRole;
+}
 
 export interface RegisterClinicPayload {
     clinicName: string;
@@ -14,8 +19,9 @@ export interface RegisterClinicPayload {
 }
 
 export interface AuthContextData {
-    user: StoredUser | null;
+    user: AuthUser | null;
     isAuthenticated: boolean;
+    isAuthLoading: boolean;
     login: (email: string, password: string) => Promise<UserRole>;
     register: (
         name: string,
@@ -25,7 +31,7 @@ export interface AuthContextData {
         cpf?: string
     ) => Promise<RegisterPendingVerificationResponse>;
     registerClinic: (payload: RegisterClinicPayload) => Promise<RegisterPendingVerificationResponse>;
-    logout: () => void;
+    logout: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextData | undefined>(undefined);
