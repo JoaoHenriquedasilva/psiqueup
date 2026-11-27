@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { AuthLoadingScreen } from './components/AuthLoadingScreen';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { useAuth } from './contexts/useAuth';
@@ -27,7 +28,11 @@ function ProtectedRoute({
     children: React.ReactNode;
     allowedRoles: UserRole[];
 }) {
-    const { user, isAuthenticated } = useAuth();
+    const { user, isAuthenticated, isAuthLoading } = useAuth();
+
+    if (isAuthLoading) {
+        return <AuthLoadingScreen />;
+    }
 
     if (!isAuthenticated || !user) {
         return <Navigate to="/login" replace />;
@@ -41,7 +46,11 @@ function ProtectedRoute({
 }
 
 function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
-    const { user, isAuthenticated } = useAuth();
+    const { user, isAuthenticated, isAuthLoading } = useAuth();
+
+    if (isAuthLoading) {
+        return <AuthLoadingScreen />;
+    }
 
     if (isAuthenticated && user) {
         return <Navigate to={getHomeRouteByRole(user.role)} replace />;
@@ -51,7 +60,11 @@ function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
 }
 
 function FallbackRedirect() {
-    const { user, isAuthenticated } = useAuth();
+    const { user, isAuthenticated, isAuthLoading } = useAuth();
+
+    if (isAuthLoading) {
+        return <AuthLoadingScreen />;
+    }
 
     if (isAuthenticated && user) {
         return <Navigate to={getHomeRouteByRole(user.role)} replace />;

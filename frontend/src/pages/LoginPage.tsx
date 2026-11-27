@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, Mail, MailWarning } from 'lucide-react';
 import { AuthLayout } from '../components/AuthLayout';
 import { FeedbackBanner } from '../components/FeedbackBanner';
@@ -11,19 +11,32 @@ import { getHomeRouteByRole } from '../utils/authRoutes';
 export function LoginPage() {
     const { login } = useAuth();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [sessionExpired, setSessionExpired] = useState(
+        () => searchParams.get('expired') === '1'
+    );
 
     const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
     const { resending, resendFeedback, setResendFeedback, resendVerification } =
         useResendVerification();
 
+    useEffect(() => {
+        if (searchParams.get('expired') === '1') {
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.delete('expired');
+            setSearchParams(nextParams, { replace: true });
+        }
+    }, [searchParams, setSearchParams]);
+
     async function handleSubmit(e: FormEvent) {
         e.preventDefault();
         setError('');
+        setSessionExpired(false);
         setUnverifiedEmail(null);
         setResendFeedback(null);
 
@@ -70,6 +83,18 @@ export function LoginPage() {
                 </>
             }
         >
+            {sessionExpired && (
+                <div className="mb-5">
+                    <FeedbackBanner
+                        feedback={{
+                            type: 'info',
+                            text: 'Sua sessão expirou por segurança. Entre novamente para continuar.',
+                        }}
+                        onClose={() => setSessionExpired(false)}
+                    />
+                </div>
+            )}
+
             {unverifiedEmail && (
                 <div
                     role="alert"
