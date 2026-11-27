@@ -119,7 +119,7 @@ class DomainRulesTest {
 
         // Login com variação de caixa e espaços
         var loginRes = authService.login(new LoginRequest("  PACIENTE.TESTE." + suffix + "@psiqueup.test ", "secret123"));
-        assertThat(loginRes.email()).isEqualTo(patientAuth.email());
+        assertThat(loginRes.user().email()).isEqualTo(patientAuth.email());
 
         // Configurar CRP e solicitar vínculo via CPF formatado (e-mail do psicólogo com caixa mista)
         profileDomainService.upsertPsychologistProfile(

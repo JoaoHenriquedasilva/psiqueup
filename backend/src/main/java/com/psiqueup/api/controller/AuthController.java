@@ -9,7 +9,11 @@ import com.psiqueup.api.dto.auth.RegisterPendingVerificationResponse;
 import com.psiqueup.api.dto.auth.RegisterRequest;
 import com.psiqueup.api.dto.auth.ResetPasswordRequest;
 import com.psiqueup.api.dto.auth.VerifyEmailRequest;
+import com.psiqueup.api.security.AuthCookieService;
 import com.psiqueup.api.service.AuthService;
+import com.psiqueup.api.util.RequestIpUtils;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -18,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -25,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final AuthCookieService authCookieService;
 
     @PostMapping("/register")
     public ResponseEntity<RegisterPendingVerificationResponse> register(@Valid @RequestBody RegisterRequest request) {
@@ -39,8 +45,52 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ResponseEntity.ok(authService.login(request));
+    public ResponseEntity<AuthResponse> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse
+    ) {
+        AuthService.AuthSession session = authService.login(request, RequestIpUtils.resolveClientIp(httpRequest));
+        authCookieService.addAuthCookies(httpResponse, session.accessToken(), session.refreshToken());
+        return ResponseEntity.ok(session.user());
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse
+    ) {
+        String rawRefreshToken = authCookieService.extractCookieValue(
+                httpRequest,
+                AuthCookieService.REFRESH_TOKEN_COOKIE
+        );
+        try {
+            AuthService.AuthSession session = authService.refresh(
+                    rawRefreshToken,
+                    RequestIpUtils.resolveClientIp(httpRequest)
+            );
+            authCookieService.addAuthCookies(httpResponse, session.accessToken(), session.refreshToken());
+            return ResponseEntity.ok(session.user());
+        } catch (ResponseStatusException ex) {
+            if (ex.getStatusCode().value() == HttpStatus.UNAUTHORIZED.value()) {
+                authCookieService.clearAuthCookies(httpResponse);
+            }
+            throw ex;
+        }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<MessageResponse> logout(
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse
+    ) {
+        String rawRefreshToken = authCookieService.extractCookieValue(
+                httpRequest,
+                AuthCookieService.REFRESH_TOKEN_COOKIE
+        );
+        MessageResponse response = authService.logout(rawRefreshToken);
+        authCookieService.clearAuthCookies(httpResponse);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/verify-email")

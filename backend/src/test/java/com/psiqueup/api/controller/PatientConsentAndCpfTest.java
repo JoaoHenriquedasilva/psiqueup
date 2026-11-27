@@ -176,13 +176,13 @@ class PatientConsentAndCpfTest {
         }
     }
 
-    private com.psiqueup.api.dto.auth.AuthResponse registerAndVerify(
+    private AuthService.AuthSession registerAndVerify(
             String name, String email, String password, PublicUserRole role, String cpf) {
         authService.register(new RegisterRequest(name, email, password, role, cpf, true, null, null));
         User user = userRepository.findByEmail(email.trim().toLowerCase()).orElseThrow();
         user.setEmailVerified(true);
         userRepository.save(user);
-        return authService.login(new LoginRequest(email, password));
+        return authService.login(new LoginRequest(email, password), "127.0.0.1");
     }
 
     @Test
@@ -270,17 +270,17 @@ class PatientConsentAndCpfTest {
                 .build());
         patientProfileRepository.save(PatientProfile.builder().user(legacyUser).build());
 
-        var legacyLogin = authService.login(new com.psiqueup.api.dto.auth.LoginRequest(legacyEmail, "secret123"));
+        var legacyLogin = authService.login(new com.psiqueup.api.dto.auth.LoginRequest(legacyEmail, "secret123"), "127.0.0.1");
 
         mockMvc().perform(get("/api/profiles/patient/me")
-                        .header("Authorization", "Bearer " + legacyLogin.token()))
+                        .header("Authorization", "Bearer " + legacyLogin.accessToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hasCpf").value(false))
                 .andExpect(jsonPath("$.cpfMasked").value(nullValue()));
 
         // Tentar completar com CPF já usado por outro paciente -> 409
         mockMvc().perform(put("/api/profiles/patient/me")
-                        .header("Authorization", "Bearer " + legacyLogin.token())
+                        .header("Authorization", "Bearer " + legacyLogin.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cpf\":\"" + patCpf + "\"}"))
                 .andExpect(status().isConflict());
@@ -288,7 +288,7 @@ class PatientConsentAndCpfTest {
         // Completar com CPF próprio válido -> 200 OK
         String legacyCpf = uniqueCpf();
         mockMvc().perform(put("/api/profiles/patient/me")
-                        .header("Authorization", "Bearer " + legacyLogin.token())
+                        .header("Authorization", "Bearer " + legacyLogin.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cpf\":\"" + formatCpf(legacyCpf) + "\"}"))
                 .andExpect(status().isOk())
@@ -297,7 +297,7 @@ class PatientConsentAndCpfTest {
 
         // Tentar alterar CPF novamente após já cadastrado -> 409 Conflict
         mockMvc().perform(put("/api/profiles/patient/me")
-                        .header("Authorization", "Bearer " + legacyLogin.token())
+                        .header("Authorization", "Bearer " + legacyLogin.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cpf\":\"" + uniqueCpf() + "\"}"))
                 .andExpect(status().isConflict());
@@ -306,7 +306,7 @@ class PatientConsentAndCpfTest {
         var psychAuth = registerAndVerify(
                 "Dra. Teste", "psy.prof." + suffix + "@psiqueup.test", "secret123", PublicUserRole.PSYCHOLOGIST, null);
         mockMvc().perform(get("/api/profiles/patient/me")
-                        .header("Authorization", "Bearer " + psychAuth.token()))
+                        .header("Authorization", "Bearer " + psychAuth.accessToken()))
                 .andExpect(status().isForbidden());
     }
 
@@ -334,7 +334,7 @@ class PatientConsentAndCpfTest {
 
         // 1. Psicólogo sem CRP -> 400 Bad Request
         mockMvc().perform(post("/api/links")
-                        .header("Authorization", "Bearer " + psychAuth.token())
+                        .header("Authorization", "Bearer " + psychAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cpf\":\"" + patCpf + "\"}"))
                 .andExpect(status().isBadRequest());
@@ -346,14 +346,14 @@ class PatientConsentAndCpfTest {
 
         // 2. Anti-enumeração em POST /api/links: CPF inexistente e CPF de paciente inativo retornam 202 neutro
         mockMvc().perform(post("/api/links")
-                        .header("Authorization", "Bearer " + psychAuth.token())
+                        .header("Authorization", "Bearer " + psychAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cpf\":\"" + nonExistentCpf + "\"}"))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.message").value(NeutralActionResponse.LINK_REQUEST_ACCEPTED_MESSAGE));
 
         mockMvc().perform(post("/api/links")
-                        .header("Authorization", "Bearer " + psychAuth.token())
+                        .header("Authorization", "Bearer " + psychAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cpf\":\"" + inactivePatCpf + "\"}"))
                 .andExpect(status().isAccepted())
@@ -361,7 +361,7 @@ class PatientConsentAndCpfTest {
 
         // 3. Solicitação válida -> 202 Accepted, cria vínculo PENDING
         mockMvc().perform(post("/api/links")
-                        .header("Authorization", "Bearer " + psychAuth.token())
+                        .header("Authorization", "Bearer " + psychAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cpf\":\"" + formatCpf(patCpf) + "\"}"))
                 .andExpect(status().isAccepted())
@@ -369,7 +369,7 @@ class PatientConsentAndCpfTest {
 
         // 4. Enquanto PENDING, psicólogo vê apenas patientCpfMasked (patientId, patientName e patientEmail são null)
         mockMvc().perform(get("/api/links")
-                        .header("Authorization", "Bearer " + psychAuth.token()))
+                        .header("Authorization", "Bearer " + psychAuth.accessToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].status").value("PENDING"))
                 .andExpect(jsonPath("$[0].patientId").value(nullValue()))
@@ -379,7 +379,7 @@ class PatientConsentAndCpfTest {
 
         // Paciente vê os dados do psicólogo normalmente enquanto PENDING
         mockMvc().perform(get("/api/links")
-                        .header("Authorization", "Bearer " + patAuth.token()))
+                        .header("Authorization", "Bearer " + patAuth.accessToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].status").value("PENDING"))
                 .andExpect(jsonPath("$[0].psychologistName").value("Dra. Consent"))
@@ -391,7 +391,7 @@ class PatientConsentAndCpfTest {
         // 5. Agendamento bloqueado enquanto vínculo está PENDING -> 400 Bad Request
         OffsetDateTime start = OffsetDateTime.now().plusDays(2);
         mockMvc().perform(post("/api/sessions")
-                        .header("Authorization", "Bearer " + psychAuth.token())
+                        .header("Authorization", "Bearer " + psychAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -404,18 +404,18 @@ class PatientConsentAndCpfTest {
 
         // 6. Outro paciente não pode aceitar o vínculo -> 403 Forbidden
         mockMvc().perform(patch("/api/links/" + linkId + "/accept")
-                        .header("Authorization", "Bearer " + otherPatAuth.token()))
+                        .header("Authorization", "Bearer " + otherPatAuth.accessToken()))
                 .andExpect(status().isForbidden());
 
         // 7. Paciente aceita o vínculo -> 200 OK, status = ACTIVE
         mockMvc().perform(patch("/api/links/" + linkId + "/accept")
-                        .header("Authorization", "Bearer " + patAuth.token()))
+                        .header("Authorization", "Bearer " + patAuth.accessToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
 
         // Agora psicólogo vê nome, e-mail e CPF mascarado
         mockMvc().perform(get("/api/links")
-                        .header("Authorization", "Bearer " + psychAuth.token()))
+                        .header("Authorization", "Bearer " + psychAuth.accessToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].status").value("ACTIVE"))
                 .andExpect(jsonPath("$[0].patientName").value("Paciente Consent"))
@@ -424,7 +424,7 @@ class PatientConsentAndCpfTest {
 
         // E agora agendamento funciona -> 201 Created
         mockMvc().perform(post("/api/sessions")
-                        .header("Authorization", "Bearer " + psychAuth.token())
+                        .header("Authorization", "Bearer " + psychAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -437,21 +437,21 @@ class PatientConsentAndCpfTest {
 
         // 8. Rejeição de vínculo PENDING pelo outro paciente -> status = REJECTED, e nova tentativa retorna 202 sem reabrir
         mockMvc().perform(post("/api/links")
-                        .header("Authorization", "Bearer " + psychAuth.token())
+                        .header("Authorization", "Bearer " + psychAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cpf\":\"" + otherPatCpf + "\"}"))
                 .andExpect(status().isAccepted());
 
         Long otherLinkId = linkService.listMyLinks(otherPatEmail).getFirst().id();
         mockMvc().perform(patch("/api/links/" + otherLinkId + "/reject")
-                        .header("Authorization", "Bearer " + otherPatAuth.token())
+                        .header("Authorization", "Bearer " + otherPatAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"reason\":\"Não solicitei\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("REJECTED"));
 
         mockMvc().perform(post("/api/links")
-                        .header("Authorization", "Bearer " + psychAuth.token())
+                        .header("Authorization", "Bearer " + psychAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cpf\":\"" + otherPatCpf + "\"}"))
                 .andExpect(status().isAccepted())
@@ -462,7 +462,7 @@ class PatientConsentAndCpfTest {
 
         // Em vínculo REJECTED, GET /api/links também oculta patientId, patientName e patientEmail para o psicólogo
         mockMvc().perform(get("/api/links")
-                        .header("Authorization", "Bearer " + psychAuth.token()))
+                        .header("Authorization", "Bearer " + psychAuth.accessToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.id == " + otherLinkId + ")].status").value(org.hamcrest.Matchers.contains("REJECTED")))
                 .andExpect(jsonPath("$[?(@.id == " + otherLinkId + ")].patientId").value(org.hamcrest.Matchers.contains(nullValue())))
@@ -515,7 +515,7 @@ class PatientConsentAndCpfTest {
 
         // Anti-enumeração: CPF inexistente retorna 202 neutro
         mockMvc().perform(post("/api/admin/triage")
-                        .header("Authorization", "Bearer " + adminAuth.token())
+                        .header("Authorization", "Bearer " + adminAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -528,7 +528,7 @@ class PatientConsentAndCpfTest {
 
         // Triagem válida -> 202 neutro e cria vínculo PENDING com clinic_id preenchido
         mockMvc().perform(post("/api/admin/triage")
-                        .header("Authorization", "Bearer " + adminAuth.token())
+                        .header("Authorization", "Bearer " + adminAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -548,7 +548,7 @@ class PatientConsentAndCpfTest {
 
         // Enquanto PENDING, psicólogo não vê patientId, patientName ou patientEmail
         mockMvc().perform(get("/api/links")
-                        .header("Authorization", "Bearer " + psychAuth.token()))
+                        .header("Authorization", "Bearer " + psychAuth.accessToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].status").value("PENDING"))
                 .andExpect(jsonPath("$[0].patientId").value(nullValue()))
@@ -558,12 +558,12 @@ class PatientConsentAndCpfTest {
 
         // Após aceite do paciente, psicólogo passa a ver PII e patientId
         mockMvc().perform(patch("/api/links/" + createdLink.getId() + "/accept")
-                        .header("Authorization", "Bearer " + patAuth.token()))
+                        .header("Authorization", "Bearer " + patAuth.accessToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
 
         mockMvc().perform(get("/api/links")
-                        .header("Authorization", "Bearer " + psychAuth.token()))
+                        .header("Authorization", "Bearer " + psychAuth.accessToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].status").value("ACTIVE"))
                 .andExpect(jsonPath("$[0].patientId").value(patId.intValue()))

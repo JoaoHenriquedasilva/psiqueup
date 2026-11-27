@@ -4,11 +4,18 @@ export type SessionStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW' |
 export type ClinicPsychologistStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface AuthResponse {
-    token: string;
-    type: string;
     name: string;
     email: string;
     role: UserRole;
+}
+
+export interface UserProfileResponse {
+    id: number;
+    name: string;
+    email: string;
+    role: UserRole;
+    active: boolean;
+    createdAt: string;
 }
 
 export interface RegisterPendingVerificationResponse {

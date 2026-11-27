@@ -182,16 +182,16 @@ class MultiTenantClinicTest {
         User adminUser = userRepository.findByEmail(adminEmail.trim().toLowerCase()).orElseThrow();
         adminUser.setEmailVerified(true);
         userRepository.save(adminUser);
-        return authService.login(new com.psiqueup.api.dto.auth.LoginRequest(adminEmail, "secret123")).token();
+        return authService.login(new com.psiqueup.api.dto.auth.LoginRequest(adminEmail, "secret123"), "127.0.0.1").accessToken();
     }
 
-    private com.psiqueup.api.dto.auth.AuthResponse registerAndVerify(
+    private AuthService.AuthSession registerAndVerify(
             String name, String email, String password, PublicUserRole role, String cpf) {
         authService.register(new RegisterRequest(name, email, password, role, cpf, true, null, null));
         User user = userRepository.findByEmail(email.trim().toLowerCase()).orElseThrow();
         user.setEmailVerified(true);
         userRepository.save(user);
-        return authService.login(new com.psiqueup.api.dto.auth.LoginRequest(email, password));
+        return authService.login(new com.psiqueup.api.dto.auth.LoginRequest(email, password), "127.0.0.1");
     }
 
     @Test
@@ -281,20 +281,20 @@ class MultiTenantClinicTest {
 
         // Psicólogo autônomo inicialmente sem vínculos
         mockMvc().perform(get("/api/clinics/my-links")
-                        .header("Authorization", "Bearer " + psychAuth.token()))
+                        .header("Authorization", "Bearer " + psychAuth.accessToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(0)));
 
         // CNPJ inexistente -> 404
         mockMvc().perform(post("/api/clinics/join")
-                        .header("Authorization", "Bearer " + psychAuth.token())
+                        .header("Authorization", "Bearer " + psychAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cnpj\":\"" + uniqueCnpj() + "\"}"))
                 .andExpect(status().isNotFound());
 
         // Solicita vínculo à Clínica A -> 201 PENDING
         MvcResult joinResult = mockMvc().perform(post("/api/clinics/join")
-                        .header("Authorization", "Bearer " + psychAuth.token())
+                        .header("Authorization", "Bearer " + psychAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cnpj\":\"" + formatCnpj(cnpjA) + "\"}"))
                 .andExpect(status().isCreated())
@@ -307,7 +307,7 @@ class MultiTenantClinicTest {
 
         // Impedir duplicidade enquanto PENDING -> 409
         mockMvc().perform(post("/api/clinics/join")
-                        .header("Authorization", "Bearer " + psychAuth.token())
+                        .header("Authorization", "Bearer " + psychAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cnpj\":\"" + cnpjA + "\"}"))
                 .andExpect(status().isConflict());
@@ -327,14 +327,14 @@ class MultiTenantClinicTest {
 
         // Impedir duplicidade enquanto APPROVED -> 409
         mockMvc().perform(post("/api/clinics/join")
-                        .header("Authorization", "Bearer " + psychAuth.token())
+                        .header("Authorization", "Bearer " + psychAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cnpj\":\"" + cnpjA + "\"}"))
                 .andExpect(status().isConflict());
 
         // Psicólogo vê APPROVED em /api/clinics/my-links
         mockMvc().perform(get("/api/clinics/my-links")
-                        .header("Authorization", "Bearer " + psychAuth.token()))
+                        .header("Authorization", "Bearer " + psychAuth.accessToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].status").value("APPROVED"));
     }
@@ -368,7 +368,7 @@ class MultiTenantClinicTest {
 
         // Solicitar e aprovar Psy A na Clínica A
         MvcResult joinA = mockMvc().perform(post("/api/clinics/join")
-                        .header("Authorization", "Bearer " + psyAAuth.token())
+                        .header("Authorization", "Bearer " + psyAAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cnpj\":\"" + cnpjA + "\"}"))
                 .andExpect(status().isCreated())
@@ -386,7 +386,7 @@ class MultiTenantClinicTest {
 
         // Solicitar e aprovar Psy B na Clínica B
         MvcResult joinB = mockMvc().perform(post("/api/clinics/join")
-                        .header("Authorization", "Bearer " + psyBAuth.token())
+                        .header("Authorization", "Bearer " + psyBAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cnpj\":\"" + cnpjB + "\"}"))
                 .andExpect(status().isCreated())
@@ -509,7 +509,7 @@ class MultiTenantClinicTest {
 
         // Solicitar e aprovar Psy A na Clínica A
         MvcResult joinA = mockMvc().perform(post("/api/clinics/join")
-                        .header("Authorization", "Bearer " + psyAAuth.token())
+                        .header("Authorization", "Bearer " + psyAAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cnpj\":\"" + cnpjA + "\"}"))
                 .andExpect(status().isCreated())
@@ -582,7 +582,7 @@ class MultiTenantClinicTest {
 
         // Solicita vínculo à Clínica B -> PENDING, depois Admin B rejeita
         MvcResult joinB = mockMvc().perform(post("/api/clinics/join")
-                        .header("Authorization", "Bearer " + psyAuth.token())
+                        .header("Authorization", "Bearer " + psyAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cnpj\":\"" + cnpjB + "\"}"))
                 .andExpect(status().isCreated())
@@ -601,7 +601,7 @@ class MultiTenantClinicTest {
 
         // Como foi REJECTED em B, pode solicitar vínculo na Clínica A -> 201 PENDING
         MvcResult joinA = mockMvc().perform(post("/api/clinics/join")
-                        .header("Authorization", "Bearer " + psyAuth.token())
+                        .header("Authorization", "Bearer " + psyAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cnpj\":\"" + cnpjA + "\"}"))
                 .andExpect(status().isCreated())
@@ -610,7 +610,7 @@ class MultiTenantClinicTest {
 
         // Enquanto PENDING em A, tentar reabrir B deve ser bloqueado -> 409 Conflict
         mockMvc().perform(post("/api/clinics/join")
-                        .header("Authorization", "Bearer " + psyAuth.token())
+                        .header("Authorization", "Bearer " + psyAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cnpj\":\"" + cnpjB + "\"}"))
                 .andExpect(status().isConflict());
@@ -622,7 +622,7 @@ class MultiTenantClinicTest {
 
         // Enquanto APPROVED em A, tentar solicitar B deve ser bloqueado -> 409 Conflict
         mockMvc().perform(post("/api/clinics/join")
-                        .header("Authorization", "Bearer " + psyAuth.token())
+                        .header("Authorization", "Bearer " + psyAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cnpj\":\"" + cnpjB + "\"}"))
                 .andExpect(status().isConflict());
@@ -666,7 +666,7 @@ class MultiTenantClinicTest {
 
         // Psy A entra e é aprovado na Clínica A
         MvcResult joinA = mockMvc().perform(post("/api/clinics/join")
-                        .header("Authorization", "Bearer " + psyAAuth.token())
+                        .header("Authorization", "Bearer " + psyAAuth.accessToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cnpj\":\"" + cnpjA + "\"}"))
                 .andExpect(status().isCreated())

@@ -1,33 +1,68 @@
-import { useState, type ReactNode } from 'react';
-import { api } from '../services/api';
-import type { AuthResponse, RegisterPendingVerificationResponse, UserRole } from '../types/api';
-import {
-    clearStoredSession,
-    getStoredToken,
-    loadStoredUser,
-    saveStoredSession,
-    type StoredUser,
-} from '../utils/authStorage';
+import { useEffect, useState, type ReactNode } from 'react';
+import { api, registerSessionExpiredHandler } from '../services/api';
+import type {
+    AuthResponse,
+    RegisterPendingVerificationResponse,
+    UserProfileResponse,
+    UserRole,
+} from '../types/api';
+import { clearLegacyAuthStorage } from '../utils/authStorage';
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '../constants/legal';
-import { AuthContext, type RegisterClinicPayload } from './useAuth';
+import { AuthContext, type AuthUser, type RegisterClinicPayload } from './useAuth';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<StoredUser | null>(() => loadStoredUser());
+    const [user, setUser] = useState<AuthUser | null>(null);
+    const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-    function saveSession(data: AuthResponse): UserRole {
-        const userData: StoredUser = {
-            name: data.name,
-            email: data.email,
-            role: data.role,
+    useEffect(() => {
+        let active = true;
+
+        clearLegacyAuthStorage();
+        registerSessionExpiredHandler(() => {
+            if (active) {
+                setUser(null);
+            }
+        });
+
+        async function bootstrapSession() {
+            try {
+                const { data } = await api.get<UserProfileResponse>('/users/me', {
+                    _skipAuthRedirect: true,
+                });
+                if (active) {
+                    setUser({
+                        name: data.name,
+                        email: data.email,
+                        role: data.role,
+                    });
+                }
+            } catch {
+                if (active) {
+                    setUser(null);
+                }
+            } finally {
+                if (active) {
+                    setIsAuthLoading(false);
+                }
+            }
+        }
+
+        void bootstrapSession();
+
+        return () => {
+            active = false;
+            registerSessionExpiredHandler(null);
         };
-        saveStoredSession(data.token, userData);
-        setUser(userData);
-        return data.role;
-    }
+    }, []);
 
     async function login(email: string, password: string): Promise<UserRole> {
         const { data } = await api.post<AuthResponse>('/auth/login', { email, password });
-        return saveSession(data);
+        setUser({
+            name: data.name,
+            email: data.email,
+            role: data.role,
+        });
+        return data.role;
     }
 
     async function register(
@@ -65,8 +100,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return data;
     }
 
-    function logout() {
-        clearStoredSession();
+    async function logout(): Promise<void> {
+        await api.post('/auth/logout').catch(() => {});
+        clearLegacyAuthStorage();
         setUser(null);
     }
 
@@ -74,7 +110,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         <AuthContext.Provider
             value={{
                 user,
-                isAuthenticated: !!user && !!getStoredToken(),
+                isAuthenticated: !!user,
+                isAuthLoading,
                 login,
                 register,
                 registerClinic,

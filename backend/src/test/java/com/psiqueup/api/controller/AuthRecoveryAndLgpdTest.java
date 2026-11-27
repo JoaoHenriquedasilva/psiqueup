@@ -43,6 +43,7 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -225,7 +226,7 @@ class AuthRecoveryAndLgpdTest {
                         .content("{\"token\":\"" + secondToken + "\"}"))
                 .andExpect(status().isBadRequest());
 
-        // 5. Login after verification -> 200 OK with JWT
+        // 5. Login after verification -> 200 OK with HttpOnly cookies (no token in body)
         MvcResult loginResult = mockMvc().perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -235,11 +236,12 @@ class AuthRecoveryAndLgpdTest {
                                 }
                                 """.formatted(email)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").isNotEmpty())
+                .andExpect(jsonPath("$.token").doesNotExist())
+                .andExpect(cookie().exists("psiqueup_access_token"))
+                .andExpect(cookie().exists("psiqueup_refresh_token"))
                 .andReturn();
 
-        JsonNode loginJson = objectMapper.readTree(loginResult.getResponse().getContentAsString());
-        String oldJwt = loginJson.get("token").asText();
+        String oldJwt = loginResult.getResponse().getCookie("psiqueup_access_token").getValue();
 
         mockMvc().perform(get("/api/users/me")
                         .header("Authorization", "Bearer " + oldJwt))
@@ -297,7 +299,8 @@ class AuthRecoveryAndLgpdTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"" + email + "\",\"password\":\"newSecret456\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").isNotEmpty());
+                .andExpect(jsonPath("$.token").doesNotExist())
+                .andExpect(cookie().exists("psiqueup_access_token"));
 
         List<AuditLog> resetLogs = auditLogRepository.findAllByActionOrderByCreatedAtDesc("AUTH_RESET_PASSWORD");
         assertThat(resetLogs).anyMatch(log ->

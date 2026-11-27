@@ -41,6 +41,17 @@ export function DashboardShell({
 }: DashboardShellProps) {
     const { user, logout } = useAuth();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [loggingOut, setLoggingOut] = useState(false);
+
+    async function handleLogout() {
+        if (loggingOut) return;
+        setLoggingOut(true);
+        try {
+            await logout();
+        } finally {
+            setLoggingOut(false);
+        }
+    }
 
     function renderNavLinks(onItemClick?: () => void) {
         return (
@@ -85,11 +96,12 @@ export function DashboardShell({
                 <ThemeToggle variant="full" />
                 <button
                     type="button"
-                    onClick={logout}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-ink-secondary hover:text-danger-ink hover:bg-danger-bg rounded-xl border border-border-subtle hover:border-danger-border transition cursor-pointer"
+                    onClick={handleLogout}
+                    disabled={loggingOut}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-ink-secondary hover:text-danger-ink hover:bg-danger-bg rounded-xl border border-border-subtle hover:border-danger-border transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <LogOut className="h-3.5 w-3.5" />
-                    Sair da conta
+                    {loggingOut ? 'Saindo...' : 'Sair da conta'}
                 </button>
             </div>
         );
